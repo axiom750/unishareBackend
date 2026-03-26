@@ -2,6 +2,7 @@ package com.unishare.unishare.service.ride;
 
 import com.unishare.unishare.enums.ride.RideStatus;
 import com.unishare.unishare.repository.ride.RideRepository;
+import com.unishare.unishare.repository.ride.RideRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -14,9 +15,10 @@ import java.time.LocalDateTime;
 public class RideCleanUpService {
 
     private final RideRepository rideRepository;
+    private final RideRequestRepository rideRequestRepository;
 
-    // Runs every 1 hour
-    @Scheduled(fixedRate = 3600000)
+    // Runs every hour to clean rides
+    @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void deleteExpiredCancelledRides() {
 
@@ -26,5 +28,15 @@ public class RideCleanUpService {
                 RideStatus.CANCELLED,
                 threshold
         );
+    }
+
+    // Runs every hour but 10 minutes later
+    @Scheduled(cron = "0 10 * * * *")
+    @Transactional
+    public void deleteExpiredCancelledRequests() {
+
+        LocalDateTime threshold = LocalDateTime.now().minusHours(24);
+
+        rideRequestRepository.deleteExpiredCancelledRequests(threshold);
     }
 }

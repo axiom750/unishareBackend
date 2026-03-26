@@ -180,8 +180,10 @@ public class RideService {
 
         ride.setStatus(RideStatus.CANCELLED);
         ride.setCancelledAt(LocalDateTime.now());
+        // inform user this ride is canceled and mark the ride_request status as canceled .
 
         rideRepository.save(ride);
+        rideRequestRepository.cancelAllRequestsByRideId(rideId);
     }
 
     public Page<Ride> getMyRides(int page, int size) {
