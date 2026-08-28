@@ -16,7 +16,7 @@ import java.util.UUID;
 
 public interface RideRequestRepository extends JpaRepository<RideRequest, UUID> {
 
-    Page<RideRequest> findByRideId(UUID rideId,Pageable pageable);
+    Page<RideRequest> findByRideId(UUID rideId, Pageable pageable);
 
     Optional<RideRequest> findByRideIdAndPassengerIdAndStatus(
             UUID rideId,
@@ -36,37 +36,40 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, UUID> 
     );
 
     @Query("""
-    SELECT new com.unishare.unishare.dto.ride.RidePassengerDto(
-        u.id,
-        u.email,
-        u.username,
-        u.userProfilePictureURL,
-        u.userBio,
-        rr.seatsRequested
-    )
-    FROM RideRequest rr
-    JOIN User u ON rr.passengerId = u.id
-    WHERE rr.rideId = :rideId
-    AND rr.status = com.unishare.unishare.enums.ride.RideRequestStatus.CONFIRMED
-    """)
-    Page<RidePassengerDto> findConfirmedPassengers(UUID rideId, Pageable pageable);
+        SELECT new com.unishare.dto.ride.RidePassengerDto(
+            u.id,
+            u.email,
+            u.username,
+            u.userProfilePictureURL,
+            u.userBio,
+            rr.seatsRequested
+        )
+        FROM RideRequest rr
+        JOIN User u ON rr.passengerId = u.id
+        WHERE rr.rideId = :rideId
+        AND rr.status = com.unishare.enums.ride.RideRequestStatus.CONFIRMED
+        """)
+    Page<RidePassengerDto> findConfirmedPassengers(
+            UUID rideId,
+            Pageable pageable
+    );
 
     @Modifying
     @Transactional
     @Query("""
-    UPDATE RideRequest r
-    SET r.status = com.unishare.unishare.enums.ride.RideRequestStatus.CANCELLED,
-        r.respondedAt = CURRENT_TIMESTAMP
-    WHERE r.rideId = :rideId
-    """)
+        UPDATE RideRequest r
+        SET r.status = com.unishare.enums.ride.RideRequestStatus.CANCELLED,
+            r.respondedAt = CURRENT_TIMESTAMP
+        WHERE r.rideId = :rideId
+        """)
     void cancelAllRequestsByRideId(UUID rideId);
 
     @Modifying
     @Transactional
     @Query("""
-    DELETE FROM RideRequest r
-    WHERE r.status = com.unishare.unishare.enums.ride.RideRequestStatus.CANCELLED
-    AND r.respondedAt < :threshold
-    """)
+        DELETE FROM RideRequest r
+        WHERE r.status = com.unishare.enums.ride.RideRequestStatus.CANCELLED
+        AND r.respondedAt < :threshold
+        """)
     void deleteExpiredCancelledRequests(LocalDateTime threshold);
 }

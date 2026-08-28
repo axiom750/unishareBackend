@@ -14,8 +14,12 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class RegisterRequest {
 
-    @NotBlank
+    // Support both username and firstName/lastName from frontend
     private String username;
+    
+    private String firstName;
+    
+    private String lastName;
 
     @NotBlank
     @Email
@@ -25,11 +29,26 @@ public class RegisterRequest {
     @Size(min = 6)
     private String password;
 
+    private String university;
+
     private LocalDate dateOfBirth;
 
-    @NotBlank
+    // Make these optional since frontend doesn't send them
     private String securityQuestion;
 
-    @NotBlank
     private String securityAnswer;
+    
+    // Helper method to get the username (either provided or constructed from firstName/lastName)
+    public String getEffectiveUsername() {
+        if (username != null && !username.isEmpty()) {
+            return username;
+        }
+        if (firstName != null && lastName != null) {
+            return firstName + " " + lastName;
+        }
+        if (firstName != null) {
+            return firstName;
+        }
+        return email.split("@")[0]; // Fallback to email prefix
+    }
 }

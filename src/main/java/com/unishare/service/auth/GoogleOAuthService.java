@@ -59,11 +59,16 @@ public class GoogleOAuthService {
     }
 
 
-    public ResponseEntity<Void> handleCallback(String code) {
+    public ResponseEntity<String> handleCallback(String code) {
+
+        System.out.println("DEBUG: Google OAuth callback received with code: " + code.substring(0, Math.min(20, code.length())) + "...");
 
         try {
             String idToken = exchangeCodeForToken(code);
+            System.out.println("DEBUG: Successfully exchanged code for token");
+            
             GoogleIdToken.Payload payload = verifyToken(idToken);
+            System.out.println("DEBUG: Token verified successfully for email: " + payload.getEmail());
 
 
             User user = userService.processGoogleUser(
@@ -72,14 +77,18 @@ public class GoogleOAuthService {
                     payload.getSubject(),
                     (String) payload.get("picture")
             );
+            System.out.println("DEBUG: User processed: " + user.getEmail());
 
             String jwt = jwtService.generateToken(
                     user.getId(),
                     user.getEmail(),
                     user.getRole().name()
             );
+            System.out.println("DEBUG: JWT generated successfully");
 
             ResponseCookie cookie = buildCookie(jwt);
+
+            System.out.println("DEBUG: Redirecting to: " + frontendUrl);
 
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -87,36 +96,55 @@ public class GoogleOAuthService {
                     .build();
 
         } catch (Exception e) {
+            // Log the error for debugging
+            System.err.println("Google OAuth error: " + e.getMessage());
+            e.printStackTrace();
+            
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .header(HttpHeaders.LOCATION, frontendUrl + "/login-error")
+                    .header(HttpHeaders.LOCATION, frontendUrl + "/login-error?error=oauth_failed")
                     .build();
         }
     }
 
     private String exchangeCodeForToken(String code) {
 
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("code", code);
-        params.add("client_id", clientId);
-        params.add("client_secret", clientSecret);
-        params.add("redirect_uri", redirectUri);
-        params.add("grant_type", "authorization_code");
+        try {
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("code", code);
+            params.add("client_id", clientId);
+            params.add("client_secret", clientSecret);
+            params.add("redirect_uri", redirectUri);
+            params.add("grant_type", "authorization_code");
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        HttpEntity<MultiValueMap<String, String>> request =
-                new HttpEntity<>(params, headers);
+            HttpEntity<MultiValueMap<String, String>> request =
+                    new HttpEntity<>(params, headers);
 
-        ResponseEntity<Map> response =
-                restTemplate.postForEntity(tokenEndPoint, request, Map.class);
+            System.out.println("DEBUG: Exchanging code for token with redirect_uri: " + redirectUri);
 
-        if (response.getBody() == null ||
-                response.getBody().get("id_token") == null) {
-            throw new RuntimeException("Token response invalid");
+            ResponseEntity<Map> response =
+                    restTemplate.postForEntity(tokenEndPoint, request, Map.class);
+
+            System.out.println("DEBUG: Token exchange response: " + response.getStatusCode());
+
+            if (response.getBody() == null) {
+                System.err.println("ERROR: Token response body is null");
+                throw new RuntimeException("Token response body is null");
+            }
+
+            if (response.getBody().get("id_token") == null) {
+                System.err.println("ERROR: Token response does not contain id_token. Response: " + response.getBody());
+                throw new RuntimeException("Token response invalid - no id_token");
+            }
+
+            return (String) response.getBody().get("id_token");
+        } catch (Exception e) {
+            System.err.println("ERROR in exchangeCodeForToken: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to exchange code for token: " + e.getMessage(), e);
         }
-
-        return (String) response.getBody().get("id_token");
     }
 
     private GoogleIdToken.Payload verifyToken(String idTokenString)
@@ -133,12 +161,18 @@ public class GoogleOAuthService {
 
 
     private ResponseCookie buildCookie(String jwt) {
-        return ResponseCookie.from("token", jwt)
+        ResponseCookie cookie = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
                 .secure(isProduction)
+                .domain("localhost")  // Set for entire localhost domain
                 .path("/")
                 .maxAge(60 * 60 * 24)
                 .sameSite(isProduction ? "None" : "Lax")
                 .build();
+        
+        System.out.println("DEBUG: Building cookie - httpOnly: true, secure: " + isProduction + ", domain: localhost, sameSite: " + (isProduction ? "None" : "Lax"));
+        System.out.println("DEBUG: Cookie: " + cookie.toString());
+        
+        return cookie;
     }
 }
