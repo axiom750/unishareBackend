@@ -5,12 +5,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpHeaders;
 
 @RestController
+@RequestMapping("/api/auth/google")
 @RequiredArgsConstructor
 public class GoogleAuthController {
 
@@ -24,9 +23,9 @@ public class GoogleAuthController {
 
     /**
      * Initiates Google OAuth flow by redirecting to Google's authorization page
-     * Frontend calls this endpoint: GET /auth/google
+     * Frontend calls this endpoint: GET /api/auth/google
      */
-    @GetMapping("/auth/google")
+    @GetMapping
     public ResponseEntity<Void> initiateGoogleLogin() {
         String googleAuthUrl = "https://accounts.google.com/o/oauth2/v2/auth"
                 + "?client_id=" + clientId
@@ -45,7 +44,7 @@ public class GoogleAuthController {
      * Handles the callback from Google OAuth
      * Google redirects here after user authorization
      */
-    @GetMapping("/auth/google/callback")
+    @GetMapping("/callback")
     public ResponseEntity<String> handleGoogleCallback(@RequestParam String code) {
         return googleOAuthService.handleCallback(code);
     }

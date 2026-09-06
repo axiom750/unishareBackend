@@ -47,6 +47,17 @@ public class GithubOAuthService {
     @Value("${production.status}")
     private boolean isProduction;
 
+    public ResponseEntity<Void> initiateLogin() {
+        String githubAuthUrl = "https://github.com/login/oauth/authorize"
+                + "?client_id=" + clientId
+                + "&redirect_uri=" + redirectUrl
+                + "&scope=read:user%20user:email";
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.LOCATION, githubAuthUrl)
+                .build();
+    }
+
     public ResponseEntity<Void> handleCallback(String code) {
 
         try {

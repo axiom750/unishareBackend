@@ -6,11 +6,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/auth/github")
+@RequestMapping("/api/auth/github")
 @RequiredArgsConstructor
 public class GithubAuthController {
 
     private final GithubOAuthService githubOAuthService;
+
+    @GetMapping
+    public ResponseEntity<Void> initiateGithubLogin() {
+        return githubOAuthService.initiateLogin();
+    }
 
     @GetMapping("/callback")
     public ResponseEntity<Void> handleGithubCallback(@RequestParam String code) {

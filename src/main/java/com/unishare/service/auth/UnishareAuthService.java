@@ -2,6 +2,9 @@ package com.unishare.service.auth;
 
 import com.unishare.dto.auth.LoginRequest;
 import com.unishare.dto.auth.RegisterRequest;
+import com.unishare.dto.response.ApiResponse;
+import com.unishare.dto.response.AuthResponseDTO;
+import com.unishare.dto.response.UserDTO;
 import com.unishare.entity.user.User;
 import com.unishare.enums.auth.AuthProvider;
 import com.unishare.enums.user.Roles;
@@ -9,6 +12,8 @@ import com.unishare.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,15 +28,14 @@ public class UnishareAuthService {
     @Value("${production.status}")
     private boolean isProduction;
 
-    public ResponseEntity<?> registerAndLogin(RegisterRequest request) {
-
+    public ResponseEntity<AuthResponseDTO> registerAndLogin(RegisterRequest request) {
         // Check if email already exists
         if (userService.findByEmail(request.getEmail()).isPresent()) {
             return ResponseEntity.ok(
-                    java.util.Map.of(
-                            "success", false,
-                            "message", "Email already registered"
-                    )
+                    AuthResponseDTO.builder()
+                            .success(false)
+                            .message("Email already registered")
+                            .build()
             );
         }
 
@@ -57,48 +61,84 @@ public class UnishareAuthService {
         }
 
         User savedUser = userService.save(newUser);
-
         return buildLoginResponse(savedUser, "Registration successful! Welcome to UniShare.");
     }
 
-    public ResponseEntity<?> login(LoginRequest request) {
-
-        User user = userService.findByEmail(request.getEmail())
-                .orElse(null);
+    public ResponseEntity<AuthResponseDTO> login(LoginRequest request) {
+        User user = userService.findByEmail(request.getEmail()).orElse(null);
 
         if (user == null) {
             return ResponseEntity.ok(
-                    java.util.Map.of(
-                            "success", false,
-                            "message", "User not found"
-                    )
+                    AuthResponseDTO.builder()
+                            .success(false)
+                            .message("User not found")
+                            .build()
             );
         }
 
         if (user.getAuthProvider() != AuthProvider.UNISHARE) {
             return ResponseEntity.ok(
-                    java.util.Map.of(
-                            "success", false,
-                            "message", "Please use " + user.getAuthProvider() + " to login"
-                    )
+                    AuthResponseDTO.builder()
+                            .success(false)
+                            .message("Please use " + user.getAuthProvider() + " to login")
+                            .build()
             );
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.ok(
-                    java.util.Map.of(
-                            "success", false,
-                            "message", "Invalid password"
-                    )
+                    AuthResponseDTO.builder()
+                            .success(false)
+                            .message("Invalid password")
+                            .build()
             );
         }
 
         return buildLoginResponse(user, "Login successful");
     }
 
+    public ResponseEntity<ApiResponse<UserDTO>> getCurrentUser() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            
+            if (authentication == null || !authentication.isAuthenticated() || 
+                authentication.getPrincipal().equals("anonymousUser")) {
+                return ResponseEntity.ok(ApiResponse.success(null, "No user authenticated"));
+            }
 
-    private ResponseEntity<?> buildLoginResponse(User user, String message) {
+            String userIdStr = authentication.getName();
+            Long userId = Long.parseLong(userIdStr);
+            
+            User user = userService.findById(userId).orElse(null);
+            
+            if (user == null) {
+                return ResponseEntity.ok(ApiResponse.success(null, "User not found"));
+            }
 
+            UserDTO userDTO = UserDTO.fromEntity(user);
+            return ResponseEntity.ok(ApiResponse.success(userDTO, "User retrieved successfully"));
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.success(null, "No user authenticated"));
+        }
+    }
+
+    public ResponseEntity<ApiResponse<Void>> logout() {
+        ResponseCookie cookie = ResponseCookie.from("token", "")
+                .httpOnly(true)
+                .secure(isProduction)
+                .domain("localhost")
+                .path("/")
+                .maxAge(0)
+                .sameSite(isProduction ? "None" : "Lax")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(ApiResponse.success(null, "Logged out successfully"));
+    }
+
+    private ResponseEntity<AuthResponseDTO> buildLoginResponse(User user, String message) {
         String jwt = jwtService.generateToken(
                 user.getId(),
                 user.getEmail(),
@@ -108,31 +148,22 @@ public class UnishareAuthService {
         ResponseCookie cookie = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
                 .secure(isProduction)
-                .domain("localhost")  // Set for entire localhost domain
+                .domain("localhost")
                 .path("/")
                 .maxAge(60 * 60 * 24)
                 .sameSite(isProduction ? "None" : "Lax")
                 .build();
 
-        // Return format expected by frontend: { success: true, user: {...}, message: '...' }
+        UserDTO userDTO = UserDTO.fromEntity(user);
+        
+        AuthResponseDTO response = AuthResponseDTO.builder()
+                .success(true)
+                .message(message)
+                .user(userDTO)
+                .build();
+
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(
-                        java.util.Map.of(
-                                "success", true,
-                                "message", message,
-                                "user", java.util.Map.of(
-                                        "id", user.getId(),
-                                        "email", user.getEmail(),
-                                        "username", user.getUsername() != null ? user.getUsername() : "",
-                                        "role", user.getRole(),
-                                        "authProvider", user.getAuthProvider(),
-                                        "active", user.isActive(),
-                                        "userBio", user.getUserBio() != null ? user.getUserBio() : "",
-                                        "userProfilePictureURL", user.getUserProfilePictureURL() != null ? user.getUserProfilePictureURL() : "",
-                                        "universityName", user.getUniversityName() != null ? user.getUniversityName() : ""
-                                )
-                        )
-                );
+                .body(response);
     }
 }

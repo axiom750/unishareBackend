@@ -31,6 +31,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll() // Allow frontend API calls
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/rides/**").permitAll()
