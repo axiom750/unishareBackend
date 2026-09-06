@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: unishare-db
+    environment:
+      POSTGRES_DB: unishare
+      POSTGRES_USER: unishare
+      POSTGRES_PASSWORD: unishare123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unishare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: unishare-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "7500:7500"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/unishare
+      DATABASE_USERNAME: unishare
+      DATABASE_PASSWORD: unishare123
+      JWT_SECRET: q8V3mK2xP7nR5tY9wL4cD6sF1jH0aB3eN7uQ9zX2vM5=
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:7500
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7500/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:

@@ -1,0 +1,57 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: false
+
+frontend:
+  url: ${FRONTEND_URL}
+
+google:
+  clientId: ${GOOGLE_CLIENT_ID}
+  clientSecret: ${GOOGLE_CLIENT_SECRET}
+  redirectURL: ${BACKEND_URL}/api/auth/google/callback
+
+github:
+  clientId: ${GITHUB_CLIENT_ID}
+  clientSecret: ${GITHUB_CLIENT_SECRET}
+  redirectUrl: ${BACKEND_URL}/api/auth/github/callback
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiry: 86400000
+
+production:
+  status: true
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}
+
+server:
+  port: ${PORT:7500}
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

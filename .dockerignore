@@ -1,0 +1,47 @@
+# Maven
+target/
+!target/*.jar
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Logs
+*.log
+logs/
+
+# Environment files (use Render environment variables instead)
+.env
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db
+
+# Documentation
+README.md
+docs/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
