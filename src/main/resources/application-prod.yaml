@@ -23,11 +23,15 @@ google:
   clientId: ${GOOGLE_CLIENT_ID}
   clientSecret: ${GOOGLE_CLIENT_SECRET}
   redirectURL: ${BACKEND_URL}/api/auth/google/callback
+  auth:
+    endPoint: ${GOOGLE_TOKEN_ENDPOINT:https://oauth2.googleapis.com/token}
 
 github:
   clientId: ${GITHUB_CLIENT_ID}
   clientSecret: ${GITHUB_CLIENT_SECRET}
   redirectUrl: ${BACKEND_URL}/api/auth/github/callback
+  tokenUrl: ${GITHUB_TOKEN_URL:https://github.com/login/oauth/access_token}
+  userUrl: ${GITHUB_USER_URL:https://api.github.com/user}
 
 jwt:
   secret: ${JWT_SECRET}

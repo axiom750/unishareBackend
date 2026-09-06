@@ -44,4 +44,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:7500/actuator/health || exit 1
 
 # Run the application
-ENTRYPOINT ["java", "-jar", "-Dserver.port=${PORT:-7500}", "app.jar"]
+# Render assigns PORT dynamically, default to 7500 for local
+ENTRYPOINT ["java", "-Dserver.port=${PORT:-7500}", "-jar", "app.jar"]
