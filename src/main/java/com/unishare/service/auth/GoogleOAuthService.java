@@ -161,16 +161,24 @@ public class GoogleOAuthService {
 
 
     private ResponseCookie buildCookie(String jwt) {
-        ResponseCookie cookie = ResponseCookie.from("token", jwt)
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
                 .secure(isProduction)
-                .domain("localhost")  // Set for entire localhost domain
                 .path("/")
                 .maxAge(60 * 60 * 24)
-                .sameSite(isProduction ? "None" : "Lax")
-                .build();
+                .sameSite(isProduction ? "None" : "Lax");
         
-        System.out.println("DEBUG: Building cookie - httpOnly: true, secure: " + isProduction + ", domain: localhost, sameSite: " + (isProduction ? "None" : "Lax"));
+        // Only set domain for local development
+        if (!isProduction) {
+            cookieBuilder.domain("localhost");
+        }
+        // For production, don't set domain to allow cross-domain cookies
+        
+        ResponseCookie cookie = cookieBuilder.build();
+        
+        System.out.println("DEBUG: Building cookie - httpOnly: true, secure: " + isProduction + 
+                ", domain: " + (isProduction ? "not-set (cross-domain)" : "localhost") + 
+                ", sameSite: " + (isProduction ? "None" : "Lax"));
         System.out.println("DEBUG: Cookie: " + cookie.toString());
         
         return cookie;

@@ -213,12 +213,19 @@ public class GithubOAuthService {
     }
 
     private ResponseCookie buildCookie(String jwt) {
-        return ResponseCookie.from("token", jwt)
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
                 .secure(isProduction)
                 .path("/")
-                .sameSite(isProduction ? "None" : "Lax")
                 .maxAge(60 * 60 * 24)
-                .build();
+                .sameSite(isProduction ? "None" : "Lax");
+        
+        // Only set domain for local development
+        if (!isProduction) {
+            cookieBuilder.domain("localhost");
+        }
+        // For production, don't set domain to allow cross-domain cookies
+        
+        return cookieBuilder.build();
     }
 }

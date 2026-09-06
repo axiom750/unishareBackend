@@ -124,14 +124,19 @@ public class UnishareAuthService {
     }
 
     public ResponseEntity<ApiResponse<Void>> logout() {
-        ResponseCookie cookie = ResponseCookie.from("token", "")
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", "")
                 .httpOnly(true)
                 .secure(isProduction)
-                .domain("localhost")
                 .path("/")
                 .maxAge(0)
-                .sameSite(isProduction ? "None" : "Lax")
-                .build();
+                .sameSite(isProduction ? "None" : "Lax");
+        
+        // Only set domain for local development
+        if (!isProduction) {
+            cookieBuilder.domain("localhost");
+        }
+        
+        ResponseCookie cookie = cookieBuilder.build();
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -145,14 +150,20 @@ public class UnishareAuthService {
                 user.getRole().name()
         );
 
-        ResponseCookie cookie = ResponseCookie.from("token", jwt)
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
                 .secure(isProduction)
-                .domain("localhost")
                 .path("/")
                 .maxAge(60 * 60 * 24)
-                .sameSite(isProduction ? "None" : "Lax")
-                .build();
+                .sameSite(isProduction ? "None" : "Lax");
+        
+        // Only set domain for local development
+        if (!isProduction) {
+            cookieBuilder.domain("localhost");
+        }
+        // For production, don't set domain to allow cross-domain cookies
+        
+        ResponseCookie cookie = cookieBuilder.build();
 
         UserDTO userDTO = UserDTO.fromEntity(user);
         
