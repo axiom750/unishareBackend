@@ -1,16 +1,15 @@
-package com.unishare.dto.Request.auth;
+package com.unishare.dto.request.password;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-public class ForgotPasswordRequest {
+public class PasswordResetRequest {
 
-    @NotBlank
     @Email
+    @NotBlank
     private String email;
 }

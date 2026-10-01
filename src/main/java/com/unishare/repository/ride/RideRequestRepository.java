@@ -1,6 +1,6 @@
 package com.unishare.repository.ride;
 
-import com.unishare.dto.Request.ride.RidePassengerDto;
+import com.unishare.dto.request.ride.RidePassengerDto;
 import com.unishare.entity.ride.RideRequest;
 import com.unishare.enums.ride.RideRequestStatus;
 import org.springframework.data.domain.Page;
@@ -36,7 +36,7 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, UUID> 
     );
 
         @Query("""
-        SELECT new com.unishare.dto.Request.ride.RidePassengerDto(
+        SELECT new com.unishare.dto.request.ride.RidePassengerDto(
             u.id,
             u.email,
             u.username,

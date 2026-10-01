@@ -1,6 +1,6 @@
 package com.unishare.service.user;
 
-import com.unishare.dto.Request.user.UpdateUserProfileRequest;
+import com.unishare.dto.request.user.UpdateUserProfileRequest;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.repository.user.UserProfileRepository;

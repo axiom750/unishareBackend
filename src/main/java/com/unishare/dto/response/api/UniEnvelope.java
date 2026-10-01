@@ -1,0 +1,38 @@
+package com.unishare.dto.response.api;
+
+import lombok.*;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+
+@AllArgsConstructor
+@Getter
+@Setter
+public class UniEnvelope<T> {
+    private  T data;
+    Meta meta ;
+    public UniEnvelope() {
+    }
+
+    public  UniEnvelope(T data) {
+        this.data = data;
+        this.meta = new Meta();
+    }
+
+    @Getter
+    @Setter
+    public static class Meta{
+        private boolean success;
+        private LocalDateTime timestamp;
+        private String traceId;
+        private String message;
+
+        public Meta(){
+            this.success = true;
+            this.timestamp = LocalDateTime.now();
+            this.traceId = UUID.randomUUID().toString();
+            this.message = "Thank you for using Unishare ";
+        }
+    }
+}

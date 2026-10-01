@@ -1,8 +1,8 @@
 package com.unishare.controller.ride;
 
 import com.unishare.dto.response.PageResponse;
-import com.unishare.dto.Request.ride.RidePassengerDto;
-import com.unishare.dto.Request.ride.RideRequestCreateDto;
+import com.unishare.dto.request.ride.RidePassengerDto;
+import com.unishare.dto.request.ride.RideRequestCreateDto;
 import com.unishare.entity.ride.RideRequest;
 import com.unishare.service.ride.RideRequestService;
 import lombok.AllArgsConstructor;

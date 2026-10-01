@@ -1,18 +1,18 @@
-package com.unishare.repository.auth;
-
+package com.unishare.repository.password;
 
 import com.unishare.entity.auth.PasswordResetToken;
 import com.unishare.entity.user.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface PasswordResetTokenRepository
-        extends JpaRepository<PasswordResetToken, Long> {
+        extends JpaRepository<PasswordResetToken, UUID> {
 
-    Optional<PasswordResetToken> findByTokenHash(String tokenHash);
-
-    Optional<PasswordResetToken> findByUser(User user);
+    Optional<PasswordResetToken> findByTokenHashAndUsedFalse(
+            String tokenHash
+    );
 
     void deleteByUser(User user);
 }

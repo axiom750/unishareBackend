@@ -6,5 +6,5 @@
  | |_| | | | | /\__/ / | | | (_| | | |  __/
   \___/|_| |_|_\____/|_| |_|\__,_|_|  \___|
                                             
- :: UniShare Backend :: Spring Boot ${spring-boot.version}
+ :: UniShare Backend :: Spring Boot ${spring.version}
  :: Profile: ${spring.profiles.active:default}

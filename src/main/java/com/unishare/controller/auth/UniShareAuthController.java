@@ -1,7 +1,7 @@
 package com.unishare.controller.auth;
 
-import com.unishare.dto.Request.auth.LoginRequest;
-import com.unishare.dto.Request.auth.RegisterRequest;
+import com.unishare.dto.request.auth.LoginRequest;
+import com.unishare.dto.request.auth.RegisterRequest;
 import com.unishare.dto.response.api.ApiResponse;
 import com.unishare.dto.response.auth.AuthResponseDTO;
 import com.unishare.dto.response.user.UserDTO;
@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/auth/unishare")
 @RequiredArgsConstructor
 public class UniShareAuthController {
 

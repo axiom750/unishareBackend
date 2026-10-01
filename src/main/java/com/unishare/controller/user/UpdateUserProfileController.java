@@ -1,6 +1,6 @@
 package com.unishare.controller.user;
 
-import com.unishare.dto.Request.user.UpdateUserProfileRequest;
+import com.unishare.dto.request.user.UpdateUserProfileRequest;
 import com.unishare.service.user.ProfileUpdateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

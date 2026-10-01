@@ -1,4 +1,4 @@
-package com.unishare.dto.Request.user;
+package com.unishare.dto.request.user;
 
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
