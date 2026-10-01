@@ -1,11 +1,13 @@
 package com.unishare.service.mail;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MailService {
@@ -20,10 +22,15 @@ public class MailService {
             String token
     ) {
 
+        log.info("[MAIL] Preparing password reset email for domain: {}", 
+                email.substring(email.indexOf("@")));
+
         String resetLink =
                 frontendUrl
                         + "/reset-password?token="
                         + token;
+
+        log.debug("[MAIL] Password reset link generated with frontend URL");
 
         SimpleMailMessage message =
                 new SimpleMailMessage();
@@ -53,6 +60,12 @@ public class MailService {
                 """.formatted(resetLink)
         );
 
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+            log.info("[MAIL] Password reset email sent successfully");
+        } catch (Exception e) {
+            log.error("[MAIL] Failed to send password reset email: {}", e.getMessage());
+            throw new RuntimeException("Failed to send password reset email", e);
+        }
     }
 }

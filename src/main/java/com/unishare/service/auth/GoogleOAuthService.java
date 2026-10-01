@@ -61,7 +61,7 @@ public class GoogleOAuthService {
 
     public ResponseEntity<String> handleCallback(String code) {
 
-        System.out.println("DEBUG: Google OAuth callback received with code: " + code.substring(0, Math.min(20, code.length())) + "...");
+        System.out.println("DEBUG: Google OAuth callback received");
 
         try {
             String idToken = exchangeCodeForToken(code);
@@ -176,10 +176,9 @@ public class GoogleOAuthService {
         
         ResponseCookie cookie = cookieBuilder.build();
         
-        System.out.println("DEBUG: Building cookie - httpOnly: true, secure: " + isProduction + 
+        System.out.println("DEBUG: JWT authentication cookie created successfully - httpOnly: true, secure: " + isProduction + 
                 ", domain: " + (isProduction ? "not-set (cross-domain)" : "localhost") + 
                 ", sameSite: " + (isProduction ? "None" : "Lax"));
-        System.out.println("DEBUG: Cookie: " + cookie.toString());
         
         return cookie;
     }

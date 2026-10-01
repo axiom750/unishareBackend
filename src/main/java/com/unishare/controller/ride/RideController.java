@@ -1,5 +1,6 @@
 package com.unishare.controller.ride;
 
+import com.unishare.dto.response.MessageResponse;
 import com.unishare.dto.response.PageResponse;
 import com.unishare.dto.request.ride.RideCreateRequest;
 import com.unishare.entity.ride.Ride;
@@ -47,9 +48,9 @@ public class RideController {
     }
 
     @DeleteMapping("/{id}")
-    public String deleteRide(@PathVariable UUID id) {
+    public MessageResponse deleteRide(@PathVariable UUID id) {
         rideService.deleteRide(id);
-        return "Ride deleted permanently";
+        return new MessageResponse("Ride deleted permanently");
     }
 
     @GetMapping("/my-rides")

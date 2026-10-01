@@ -20,6 +20,11 @@ public class UniEnvelope<T> {
         this.meta = new Meta();
     }
 
+    public UniEnvelope(T data, boolean success, String message) {
+        this.data = data;
+        this.meta = new Meta(success, message);
+    }
+
     @Getter
     @Setter
     public static class Meta{
@@ -33,6 +38,13 @@ public class UniEnvelope<T> {
             this.timestamp = LocalDateTime.now();
             this.traceId = UUID.randomUUID().toString();
             this.message = "Thank you for using Unishare ";
+        }
+
+        public Meta(boolean success, String message){
+            this.success = success;
+            this.timestamp = LocalDateTime.now();
+            this.traceId = UUID.randomUUID().toString();
+            this.message = message;
         }
     }
 }

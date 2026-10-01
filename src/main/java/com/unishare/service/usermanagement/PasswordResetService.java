@@ -7,6 +7,7 @@ import com.unishare.repository.user.UserRepository;
 import com.unishare.service.mail.MailService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PasswordResetService {
@@ -33,20 +35,27 @@ public class PasswordResetService {
     @Transactional
     public void requestPasswordReset(String email) {
 
+        log.info("[AUTH] Password reset request received for email domain: {}", 
+                email.substring(email.indexOf("@")));
+
         Optional<User> optionalUser = userRepository.findByEmail(email);
 
         // Don't reveal whether the account exists
         if (optionalUser.isEmpty()) {
+            log.info("[AUTH] Password reset request completed (account not found - no action taken)");
             return;
         }
 
         User user = optionalUser.get();
+        log.info("[AUTH] Password reset request - user found, proceeding with token generation");
 
         // Invalidate previous reset tokens
         tokenRepository.deleteByUser(user);
+        log.debug("[AUTH] Previous password reset tokens invalidated for user");
 
         // Generate raw token
         String rawToken = generateToken();
+        log.debug("[AUTH] Password reset token generated successfully");
 
         // Store only the hash
         String tokenHash = hashToken(rawToken);
@@ -59,12 +68,15 @@ public class PasswordResetService {
                 );
 
         tokenRepository.save(resetToken);
+        log.info("[AUTH] Password reset token stored with 5-minute expiration");
 
         // Send raw token through email
         mailService.sendPasswordResetEmail(
                 user.getEmail(),
                 rawToken
         );
+        
+        log.info("[AUTH] Password reset request completed successfully");
     }
 
     @Transactional
@@ -73,25 +85,31 @@ public class PasswordResetService {
             String newPassword
     ) {
 
+        log.info("[AUTH] Password reset confirmation received");
+
         String tokenHash = hashToken(rawToken);
 
         PasswordResetToken resetToken =
                 tokenRepository
                         .findByTokenHashAndUsedFalse(tokenHash)
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        "Invalid or expired password reset token"
-                                )
-                        );
+                        .orElseThrow(() -> {
+                            log.warn("[AUTH] Password reset failed - invalid or already used token");
+                            return new IllegalArgumentException(
+                                    "Invalid or expired password reset token"
+                            );
+                        });
 
         // Check expiry
         if (resetToken.getExpiresAt()
                 .isBefore(LocalDateTime.now())) {
-
+            
+            log.warn("[AUTH] Password reset failed - token expired");
             throw new IllegalArgumentException(
                     "Invalid or expired password reset token"
             );
         }
+
+        log.debug("[AUTH] Password reset token validated successfully");
 
         User user = resetToken.getUser();
 
@@ -99,12 +117,15 @@ public class PasswordResetService {
         user.setPassword(
                 passwordEncoder.encode(newPassword)
         );
+        log.debug("[AUTH] User password updated with BCrypt hash");
 
         // Make token single-use
         resetToken.setUsed(true);
 
         userRepository.save(user);
         tokenRepository.save(resetToken);
+        
+        log.info("[AUTH] Password reset completed successfully for user ID: {}", user.getId());
     }
 
     private String generateToken() {

@@ -1,6 +1,7 @@
 package com.unishare.controller;
 
 
+import com.unishare.dto.response.MessageResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -8,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemHealth {
 
     @GetMapping("/health")
-    public String getSystemHealth(){
-        return "System is Running";
+    public MessageResponse getSystemHealth(){
+        return new MessageResponse("System is Running");
     }
 }

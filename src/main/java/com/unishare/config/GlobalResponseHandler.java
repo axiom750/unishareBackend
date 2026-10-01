@@ -4,6 +4,7 @@ import com.unishare.dto.response.api.UniEnvelope;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -16,6 +17,11 @@ public class GlobalResponseHandler implements ResponseBodyAdvice<Object> {
     public boolean supports(
             MethodParameter returnType,
             Class<? extends HttpMessageConverter<?>> converterType) {
+
+        // Exclude String responses to prevent ClassCastException with StringHttpMessageConverter
+        if (converterType.isAssignableFrom(StringHttpMessageConverter.class)) {
+            return false;
+        }
 
         return true;
     }

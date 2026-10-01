@@ -46,7 +46,7 @@ public class EnvironmentValidator implements ApplicationListener<ApplicationEnvi
                 missingVars.add(var);
                 log.error("  ❌ Missing: {}", var);
             } else {
-                log.info("  ✅ Found: {} = {}", var, maskValue(var, value));
+                log.info("  ✅ Found: {}", var);
             }
         }
         
@@ -63,17 +63,5 @@ public class EnvironmentValidator implements ApplicationListener<ApplicationEnvi
             log.info("✅ All required environment variables are set!");
             log.info("========================================");
         }
-    }
-    
-    private String maskValue(String key, String value) {
-        // Mask sensitive values
-        if (key.contains("SECRET") || key.contains("PASSWORD") || key.contains("JWT")) {
-            if (value.length() > 8) {
-                return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
-            }
-            return "****";
-        }
-        // Show full value for non-sensitive keys
-        return value;
     }
 }

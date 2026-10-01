@@ -1,5 +1,7 @@
 package com.unishare.config;
 
+import com.unishare.security.CustomAccessDeniedHandler;
+import com.unishare.security.CustomAuthenticationEntryPoint;
 import com.unishare.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +19,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -29,12 +33,21 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .accessDeniedHandler(accessDeniedHandler)
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll() // Allow frontend API calls
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Health checks
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/user-management/password-update",
+                                "/api/user-management/password-update/confirm"
+                        ).permitAll() // Password reset endpoints
                         .requestMatchers(HttpMethod.GET, "/api/rides/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/rides/**").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/rides/**").authenticated()
