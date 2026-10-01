@@ -1,4 +1,4 @@
-package com.unishare.dto.response;
+package com.unishare.dto.response.auth;
 
 import com.unishare.enums.auth.AuthProvider;
 import com.unishare.enums.user.Roles;

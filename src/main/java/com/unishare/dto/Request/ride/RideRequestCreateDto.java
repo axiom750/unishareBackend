@@ -1,4 +1,4 @@
-package com.unishare.dto.ride;
+package com.unishare.dto.Request.ride;
 
 import jakarta.validation.constraints.Min;
 import lombok.Getter;

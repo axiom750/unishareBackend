@@ -1,4 +1,4 @@
-package com.unishare.dto.ride;
+package com.unishare.dto.Request.ride;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

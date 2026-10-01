@@ -1,7 +1,9 @@
 package com.unishare.service.user;
 
-import com.unishare.dto.user.UpdateUserProfileRequest;
+import com.unishare.dto.Request.user.UpdateUserProfileRequest;
 import com.unishare.entity.user.User;
+import com.unishare.entity.user.UserProfile;
+import com.unishare.repository.user.UserProfileRepository;
 import com.unishare.repository.user.UserRepository;
 import com.unishare.service.media.MediaService;
 import jakarta.transaction.Transactional;
@@ -16,6 +18,7 @@ import java.util.Map;
 public class ProfileUpdateService {
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final MediaService mediaService;
 
     @Transactional
@@ -25,52 +28,80 @@ public class ProfileUpdateService {
             MultipartFile profileImage) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() ->
+                        new RuntimeException("User not found"));
+
+        UserProfile profile = userProfileRepository
+                .findByUser(user)
+                .orElseGet(() -> UserProfile.builder()
+                        .user(user)
+                        .build());
 
         boolean updated = false;
 
-        // USERNAME
-        if (request != null && request.getUsername() != null) {
+        if (request != null &&
+                request.getUsername() != null) {
 
-            String newUsername = request.getUsername().trim();
+            String newUsername =
+                    request.getUsername().trim();
 
-            if (newUsername.isBlank())
-                throw new IllegalArgumentException("Username cannot be blank");
+            if (newUsername.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Username cannot be blank"
+                );
+            }
 
-            if (!newUsername.matches("^[a-zA-Z0-9_]+$"))
-                throw new IllegalArgumentException("Invalid username format");
+            if (!newUsername.matches("^[a-zA-Z0-9_]+$")) {
+                throw new IllegalArgumentException(
+                        "Invalid username format"
+                );
+            }
 
             if (!newUsername.equals(user.getUsername())) {
 
-                if (userRepository.existsByUsername(newUsername))
-                    throw new IllegalArgumentException("Username already taken");
+                if (userRepository.existsByUsername(newUsername)) {
+                    throw new IllegalArgumentException(
+                            "Username already taken"
+                    );
+                }
 
                 user.setUsername(newUsername);
                 updated = true;
             }
         }
 
-        // BIO
         if (request != null &&
-                request.getUserBio() != null &&
-                !request.getUserBio().equals(user.getUserBio())) {
+                request.getBio() != null) {
 
-            user.setUserBio(request.getUserBio());
-            updated = true;
+            String newBio = request.getBio().trim();
+
+            if (!newBio.equals(profile.getBio())) {
+
+                profile.setBio(newBio);
+                updated = true;
+            }
         }
 
-        //UNIVERSITY NAME
-        if(request != null &&
-                request.getUniversityName() != null &&
-                !request.getUniversityName().equals(user.getUniversityName())){
-            user.setUniversityName(request.getUniversityName());
-            updated = true;
+        if (request != null &&
+                request.getUniversityName() != null) {
+
+            String newUniversity =
+                    request.getUniversityName().trim();
+
+            if (!newUniversity.equals(
+                    profile.getUniversityName())) {
+
+                profile.setUniversityName(newUniversity);
+                updated = true;
+            }
         }
 
-        // PROFILE IMAGE
-        if (profileImage != null && !profileImage.isEmpty()) {
+        if (profileImage != null &&
+                !profileImage.isEmpty()) {
 
-            String folder = "unishare/users/" + userId;
+            String folder =
+                    "unishare/users/" + userId;
+
             String publicId = "profile";
 
             Map<String, String> result =
@@ -81,14 +112,24 @@ public class ProfileUpdateService {
                             true
                     );
 
-            user.setUserProfilePictureURL(result.get("url"));
-            user.setProfilePicturePublicId(result.get("publicId"));
+            profile.setProfilePictureUrl(
+                    result.get("url")
+            );
+
+            profile.setProfilePicturePublicId(
+                    result.get("publicId")
+            );
 
             updated = true;
         }
 
-        if (!updated)
+
+        if (!updated) {
             return "No changes detected";
+        }
+
+        userRepository.save(user);
+        userProfileRepository.save(profile);
 
         return "Profile updated successfully";
     }

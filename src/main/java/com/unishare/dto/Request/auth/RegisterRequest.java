@@ -1,4 +1,4 @@
-package com.unishare.dto.auth;
+package com.unishare.dto.Request.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -28,15 +28,6 @@ public class RegisterRequest {
     @NotBlank
     @Size(min = 6)
     private String password;
-
-    private String university;
-
-    private LocalDate dateOfBirth;
-
-    // Make these optional since frontend doesn't send them
-    private String securityQuestion;
-
-    private String securityAnswer;
     
     // Helper method to get the username (either provided or constructed from firstName/lastName)
     public String getEffectiveUsername() {

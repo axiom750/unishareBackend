@@ -6,7 +6,6 @@ import com.unishare.enums.user.Roles;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -25,64 +24,68 @@ public class User {
     @Column(unique = true)
     private String googleId;
 
-    @Column(unique = true, nullable = false)
-    private String username;
-
-    @Column(unique = true, nullable = false)
-    private String email;
-
     @Column(unique = true)
     private String githubId;
 
-    @Column(nullable = false)
-    @Enumerated(EnumType.STRING)
-    private Roles role;
+    @Column(unique = true, nullable = false, length = 50)
+    private String username;
+
+    @Column(unique = true, nullable = false, length = 150)
+    private String email;
 
     @JsonIgnore
-    @Column(nullable = false)
+    @Column
     private String password;
 
-    @Column
-    private String userBio;
-
-    @Column
-    private String userProfilePictureURL;
-
-    @Column
-    private String profilePicturePublicId;
-
-    @Column
-    private String universityName;
-    @Column(nullable = false)
-    private boolean active;
-
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private AuthProvider authProvider;
+    @Column(nullable = false)
+    @Builder.Default
+    private AuthProvider authProvider = AuthProvider.UNISHARE;
 
-    @Column
-    private LocalDate dateOfBirth;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private Roles role = Roles.USER;
 
-    @Column
-    private String securityQuestion;
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
 
-    @JsonIgnore
-    @Column
-    private String securityAnswer;
+    @OneToOne(
+            mappedBy = "user",
+            fetch = FetchType.LAZY,
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private UserProfile profile;
 
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist
-    public void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-        role = Roles.USER;
+    protected void onCreate() {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        createdAt = now;
+        updatedAt = now;
+
+        if (role == null) {
+            role = Roles.USER;
+        }
+
+        if (authProvider == null) {
+            authProvider = AuthProvider.UNISHARE;
+        }
+
         active = true;
     }
 
     @PreUpdate
-    public void onUpdate() {
+    protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 }

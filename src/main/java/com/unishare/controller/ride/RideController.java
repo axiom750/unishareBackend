@@ -1,7 +1,7 @@
 package com.unishare.controller.ride;
 
 import com.unishare.dto.response.PageResponse;
-import com.unishare.dto.ride.RideCreateRequest;
+import com.unishare.dto.Request.ride.RideCreateRequest;
 import com.unishare.entity.ride.Ride;
 import com.unishare.service.ride.RideRequestService;
 import com.unishare.service.ride.RideService;

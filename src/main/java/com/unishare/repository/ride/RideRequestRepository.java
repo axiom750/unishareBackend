@@ -1,6 +1,6 @@
 package com.unishare.repository.ride;
 
-import com.unishare.dto.ride.RidePassengerDto;
+import com.unishare.dto.Request.ride.RidePassengerDto;
 import com.unishare.entity.ride.RideRequest;
 import com.unishare.enums.ride.RideRequestStatus;
 import org.springframework.data.domain.Page;
@@ -35,17 +35,18 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, UUID> 
             Pageable pageable
     );
 
-    @Query("""
-        SELECT new com.unishare.dto.ride.RidePassengerDto(
+        @Query("""
+        SELECT new com.unishare.dto.Request.ride.RidePassengerDto(
             u.id,
             u.email,
             u.username,
-            u.userProfilePictureURL,
-            u.userBio,
+            p.profilePictureUrl,
+            p.bio,
             rr.seatsRequested
         )
         FROM RideRequest rr
         JOIN User u ON rr.passengerId = u.id
+        LEFT JOIN u.profile p
         WHERE rr.rideId = :rideId
         AND rr.status = com.unishare.enums.ride.RideRequestStatus.CONFIRMED
         """)

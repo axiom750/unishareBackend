@@ -5,5 +5,4 @@ public enum AuthProvider {
     GOOGLE,
     GITHUB,
     UNISHARE
-
 }

@@ -1,4 +1,4 @@
-package com.unishare.dto.response;
+package com.unishare.dto.response.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

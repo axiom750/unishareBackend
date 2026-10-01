@@ -1,10 +1,10 @@
 package com.unishare.service.auth;
 
-import com.unishare.dto.auth.LoginRequest;
-import com.unishare.dto.auth.RegisterRequest;
-import com.unishare.dto.response.ApiResponse;
-import com.unishare.dto.response.AuthResponseDTO;
-import com.unishare.dto.response.UserDTO;
+import com.unishare.dto.Request.auth.LoginRequest;
+import com.unishare.dto.Request.auth.RegisterRequest;
+import com.unishare.dto.response.api.ApiResponse;
+import com.unishare.dto.response.auth.AuthResponseDTO;
+import com.unishare.dto.response.user.UserDTO;
 import com.unishare.entity.user.User;
 import com.unishare.enums.auth.AuthProvider;
 import com.unishare.enums.user.Roles;
@@ -46,19 +46,6 @@ public class UnishareAuthService {
         newUser.setActive(true);
         newUser.setRole(Roles.USER);
         newUser.setAuthProvider(AuthProvider.UNISHARE);
-        
-        // Set university if provided
-        if (request.getUniversity() != null && !request.getUniversity().isEmpty()) {
-            newUser.setUniversityName(request.getUniversity());
-        }
-        
-        // Set security question and answer if provided
-        if (request.getSecurityQuestion() != null && !request.getSecurityQuestion().isEmpty()) {
-            newUser.setSecurityQuestion(request.getSecurityQuestion());
-        }
-        if (request.getSecurityAnswer() != null && !request.getSecurityAnswer().isEmpty()) {
-            newUser.setSecurityAnswer(request.getSecurityAnswer());
-        }
 
         User savedUser = userService.save(newUser);
         return buildLoginResponse(savedUser, "Registration successful! Welcome to UniShare.");

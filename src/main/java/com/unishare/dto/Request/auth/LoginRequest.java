@@ -1,4 +1,4 @@
-package com.unishare.dto.auth;
+package com.unishare.dto.Request.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;

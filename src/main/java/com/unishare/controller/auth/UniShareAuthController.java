@@ -1,10 +1,10 @@
 package com.unishare.controller.auth;
 
-import com.unishare.dto.auth.LoginRequest;
-import com.unishare.dto.auth.RegisterRequest;
-import com.unishare.dto.response.ApiResponse;
-import com.unishare.dto.response.AuthResponseDTO;
-import com.unishare.dto.response.UserDTO;
+import com.unishare.dto.Request.auth.LoginRequest;
+import com.unishare.dto.Request.auth.RegisterRequest;
+import com.unishare.dto.response.api.ApiResponse;
+import com.unishare.dto.response.auth.AuthResponseDTO;
+import com.unishare.dto.response.user.UserDTO;
 import com.unishare.service.auth.UnishareAuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -1,6 +1,7 @@
-package com.unishare.dto.response;
+package com.unishare.dto.response.auth;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.unishare.dto.response.user.UserDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,7 +1,7 @@
 package com.unishare.service.ride;
 
-import com.unishare.dto.ride.RidePassengerDto;
-import com.unishare.dto.ride.RideRequestCreateDto;
+import com.unishare.dto.Request.ride.RidePassengerDto;
+import com.unishare.dto.Request.ride.RideRequestCreateDto;
 import com.unishare.entity.ride.Ride;
 import com.unishare.entity.ride.RideRequest;
 import com.unishare.enums.ride.RideRequestStatus;
