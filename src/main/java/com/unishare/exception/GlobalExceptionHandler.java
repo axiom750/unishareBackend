@@ -1,6 +1,8 @@
 package com.unishare.exception;
 
 import com.unishare.dto.response.api.UniEnvelope;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -12,6 +14,7 @@ import org.springframework.web.context.request.WebRequest;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -64,11 +67,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(envelope);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleDataIntegrityViolationException(
+            DataIntegrityViolationException ex,
+            WebRequest request
+    ) {
+        // Log the full exception server-side for debugging
+        log.error("[DB] Data integrity violation: {}", ex.getMessage());
+
+        // Return generic error to client without exposing SQL details
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", System.currentTimeMillis());
+        errorDetails.put("status", 500);
+        errorDetails.put("error", "Internal Server Error");
+        errorDetails.put("message", "An error occurred while processing your request. Please try again.");
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+
+        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
+                errorDetails,
+                false,
+                "An error occurred"
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<UniEnvelope<Map<String, Object>>> handleRuntimeException(
             RuntimeException ex,
             WebRequest request
     ) {
+        // Log the full exception server-side
+        log.error("[ERROR] Runtime exception: {}", ex.getMessage(), ex);
+
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", System.currentTimeMillis());
         errorDetails.put("status", 500);
@@ -90,6 +121,9 @@ public class GlobalExceptionHandler {
             Exception ex,
             WebRequest request
     ) {
+        // Log the full exception server-side
+        log.error("[ERROR] Unexpected exception: {}", ex.getMessage(), ex);
+
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", System.currentTimeMillis());
         errorDetails.put("status", 500);

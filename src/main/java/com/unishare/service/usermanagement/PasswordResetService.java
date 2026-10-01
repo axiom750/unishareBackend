@@ -8,6 +8,7 @@ import com.unishare.service.mail.MailService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,9 @@ public class PasswordResetService {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Value("${frontend.url}")
+    private String frontendUrl;
+
     @Transactional
     public void requestPasswordReset(String email) {
 
@@ -49,8 +53,9 @@ public class PasswordResetService {
         User user = optionalUser.get();
         log.info("[AUTH] Password reset request - user found, proceeding with token generation");
 
-        // Invalidate previous reset tokens
+        // Invalidate previous reset tokens - delete must execute before insert
         tokenRepository.deleteByUser(user);
+        tokenRepository.flush();
         log.debug("[AUTH] Previous password reset tokens invalidated for user");
 
         // Generate raw token
@@ -67,16 +72,27 @@ public class PasswordResetService {
                         LocalDateTime.now().plusMinutes(5)
                 );
 
-        tokenRepository.save(resetToken);
-        log.info("[AUTH] Password reset token stored with 5-minute expiration");
+        // Persist token and flush to database before sending email
+        tokenRepository.saveAndFlush(resetToken);
+        log.info("[AUTH] Password reset token persisted to database with 5-minute expiration");
 
-        // Send raw token through email
-        mailService.sendPasswordResetEmail(
-                user.getEmail(),
-                rawToken
-        );
-        
-        log.info("[AUTH] Password reset request completed successfully");
+        // Build complete reset link
+        String resetLink = frontendUrl + "/reset-password?token=" + rawToken;
+        log.debug("[AUTH] Password reset link generated");
+
+        // Send reset link through email AFTER successful database persistence
+        try {
+            mailService.sendPasswordResetEmail(
+                    user.getEmail(),
+                    resetLink
+            );
+            log.info("[AUTH] Password reset request completed successfully");
+        } catch (Exception e) {
+            log.error("[AUTH] Failed to send password reset email after token was stored: {}", e.getMessage());
+            // Token is already in database, but email failed
+            // This is acceptable - user can request another reset
+            throw new RuntimeException("Failed to send password reset email. Please try again.", e);
+        }
     }
 
     @Transactional

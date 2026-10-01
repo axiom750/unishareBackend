@@ -35,7 +35,9 @@ public class EnvironmentValidator implements ApplicationListener<ApplicationEnvi
             "GITHUB_CLIENT_SECRET",
             "CLOUDINARY_CLOUD_NAME",
             "CLOUDINARY_API_KEY",
-            "CLOUDINARY_API_SECRET"
+            "CLOUDINARY_API_SECRET",
+            "BREVO_API_KEY",
+            "MAIL_FROM_EMAIL"
         );
         
         log.info("📋 Checking {} required environment variables...", requiredVars.size());

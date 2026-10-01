@@ -15,17 +15,12 @@ spring:
       hibernate:
         show_sql: false
         format_sql: false
+  brevo:
+    api-key: ${BREVO_API_KEY}
+
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+    from-email: ${MAIL_FROM_EMAIL}
+    from-name: ${MAIL_FROM_NAME:UniShare}
 
 frontend:
   url: ${FRONTEND_URL}
