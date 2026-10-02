@@ -366,7 +366,7 @@ public class RedisService {
         logMessage.append("[REDIS] operation=").append(operation)
                   .append(" | key=").append(safeKey)
                   .append(" | result=").append(result)
-                  .append(" | duration=").append(durationMs).append("ms");
+                  .append(" | duration=").append(String.format("%,d", durationMs)).append("ms");
         
         if (ttlSeconds != null && ttlSeconds >= 0) {
             logMessage.append(" | ttl=").append(ttlSeconds).append("s");
@@ -381,7 +381,7 @@ public class RedisService {
         if (result == RedisResult.FAILED) {
             log.error(logMessage.toString());
         } else {
-            log.debug(logMessage.toString());
+            log.info(logMessage.toString());
         }
     }
     

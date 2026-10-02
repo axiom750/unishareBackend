@@ -75,7 +75,7 @@ public class StartupConfigLogger {
     @Value("${spring.data.redis.ssl.enabled:false}")
     private String redisSsl;
     
-    @Value("${spring.data.redis.timeout:2000ms}")
+    @Value("${spring.data.redis.timeout:10000ms}")
     private String redisTimeout;
 
     // Google OAuth
@@ -174,12 +174,13 @@ public class StartupConfigLogger {
         log.info("REDIS CONNECTIVITY DIAGNOSTIC");
         log.info("============================================================");
         log.info("Configuration:");
-        log.info("  Host        : {}", redisHost);
-        log.info("  Port        : {}", redisPort);
-        log.info("  Username    : {}", redisUsername);
-        log.info("  SSL         : {}", redisSsl.equalsIgnoreCase("true") ? "ENABLED" : "DISABLED");
-        log.info("  Timeout     : {}", redisTimeout);
-        log.info("  Password    : {}", configuredStatus(redisPassword));
+        log.info("  Host            : {}", redisHost);
+        log.info("  Port            : {}", redisPort);
+        log.info("  Username        : {}", redisUsername);
+        log.info("  SSL             : {}", redisSsl.equalsIgnoreCase("true") ? "ENABLED" : "DISABLED");
+        log.info("  Command Timeout : {}", redisTimeout);
+        log.info("  Connect Timeout : 10000ms (Lettuce SocketOptions)");
+        log.info("  Password        : {}", configuredStatus(redisPassword));
         log.info("");
         log.info("Connectivity:");
         
@@ -341,7 +342,7 @@ public class StartupConfigLogger {
      */
     private long parseTimeout(String timeout) {
         if (timeout == null || timeout.isEmpty()) {
-            return 2000;
+            return 10000;  // Updated default to match new configuration
         }
         
         try {
@@ -353,7 +354,7 @@ public class StartupConfigLogger {
                 return Long.parseLong(timeout);
             }
         } catch (NumberFormatException e) {
-            return 2000; // default
+            return 10000; // Updated default to match new configuration
         }
     }
 
