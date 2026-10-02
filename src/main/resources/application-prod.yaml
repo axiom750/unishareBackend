@@ -84,3 +84,10 @@ logging:
   level:
     root: INFO
     com.unishare: INFO
+
+unishare:
+  idempotency:
+    ttl: 5m
+  redis:
+    diagnostics:
+      enabled: true
