@@ -126,15 +126,15 @@ unishare:
   # RBAC Security Configuration
   security:
     seed:
-      enabled: true  # REQUIRED: Creates default roles (USER, MODERATOR, ADMIN, SUPERUSER)
+      enabled: false  # REQUIRED: Creates default roles (USER, MODERATOR, ADMIN, SUPERUSER)
     
     superuser:
       # STEP 1: Keep enabled=false, deploy, create SUPERUSER account via registration
       # STEP 2: Set enabled=true, restart to bootstrap SUPERUSER role
       # STEP 3: (Optional) Set back to false after successful bootstrap
-      enabled: ${SUPERUSER_BOOTSTRAP_ENABLED:false}
-      email: ${SUPERUSER_EMAIL:}  # REQUIRED: Email of user to receive SUPERUSER role
+      enabled: false
+      email: superuser.unishare@gmail.com  # REQUIRED: Email of user to receive SUPERUSER role
     
     permission:
       scanner:
-        enabled: true  # REQUIRED: Scans @Permission annotations and syncs to database
+        enabled: false  # REQUIRED: Scans @Permission annotations and syncs to database
