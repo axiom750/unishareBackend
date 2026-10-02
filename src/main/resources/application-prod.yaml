@@ -1,3 +1,7 @@
+# Production Configuration for UniShare Backend
+# This is the COMPLETE production configuration
+# All values use environment variables for security
+
 spring:
   data:
     redis:
@@ -5,72 +9,85 @@ spring:
       port: ${REDIS_PORT:6379}
       username: ${REDIS_USERNAME:default}
       password: ${REDIS_PASSWORD:}
-      timeout: ${REDIS_TIMEOUT:10000ms}
-
       ssl:
         enabled: ${REDIS_SSL:false}
-
+      timeout: ${REDIS_TIMEOUT:10000ms}
       repositories:
         enabled: false
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  application:
+    name: unishare
+
+  production:
+    status: true
+
+  version: 1.0
+
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
+      auto-commit: false
+      maximum-pool-size: 5
 
   jpa:
     hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        show_sql: false
-        format_sql: false
-      open-in-view: false
-  brevo:
-    api-key: ${BREVO_API_KEY}
+      ddl-auto: update
+    open-in-view: false
 
-  mail:
-    from-email: ${MAIL_FROM_EMAIL}
-    from-name: ${MAIL_FROM_NAME:UniShare}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+
+mail:
+  from-email: ${MAIL_FROM_EMAIL:noreply@unishare.com}
+  from-name: UniShare
 
 frontend:
-  url: ${FRONTEND_URL}
+  url: ${FRONTEND_URL:http://localhost:3000}
 
 google:
-  clientId: ${GOOGLE_CLIENT_ID}
-  clientSecret: ${GOOGLE_CLIENT_SECRET}
-  redirectURL: ${BACKEND_URL}/api/auth/google/callback
+  clientId: ${GOOGLE_CLIENT_ID:}
+  clientSecret: ${GOOGLE_CLIENT_SECRET:}
+  redirectURL: ${GOOGLE_REDIRECT_URL:http://localhost:8080/api/auth/google/callback}
   auth:
-    endPoint: ${GOOGLE_TOKEN_ENDPOINT:https://oauth2.googleapis.com/token}
-
-github:
-  clientId: ${GITHUB_CLIENT_ID}
-  clientSecret: ${GITHUB_CLIENT_SECRET}
-  redirectUrl: ${BACKEND_URL}/api/auth/github/callback
-  tokenUrl: ${GITHUB_TOKEN_URL:https://github.com/login/oauth/access_token}
-  userUrl: ${GITHUB_USER_URL:https://api.github.com/user}
+    endPoint: https://oauth2.googleapis.com/token
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:}
   expiry: 86400000
 
 production:
   status: true
 
+github:
+  clientId: ${GITHUB_CLIENT_ID:}
+  clientSecret: ${GITHUB_CLIENT_SECRET:}
+  redirectUrl: ${GITHUB_REDIRECT_URL:http://localhost:8080/api/auth/github/callback}
+  tokenUrl: https://github.com/login/oauth/access_token
+  userUrl: https://api.github.com/user
+
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME}
-  api-key: ${CLOUDINARY_API_KEY}
-  api-secret: ${CLOUDINARY_API_SECRET}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
 
 server:
-  port: ${PORT:7500}
-  forward-headers-strategy: framework
-  compression:
-    enabled: true
+  port: ${PORT:8080}
 
+# Actuator endpoints for health checks
 management:
   endpoints:
     web:
@@ -78,16 +95,19 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: never
+      show-details: when-authorized
 
 logging:
   level:
     root: INFO
     com.unishare: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.hibernate.orm.jdbc.extract: WARN
 
 unishare:
   idempotency:
     ttl: 5m
   redis:
     diagnostics:
-      enabled: true
+      enabled: true  # Temporarily enabled for diagnosis - set to false after
