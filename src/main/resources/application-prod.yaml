@@ -18,8 +18,12 @@ spring:
         pool:
           max-active: 8
           max-idle: 8
-          min-idle: 0
+          min-idle: 1  # Pre-warm 1 connection to amortize TLS handshake cost
           max-wait: -1ms
+          # Disable validation that triggers extra TLS handshakes
+          test-on-borrow: false
+          test-on-return: false
+          test-while-idle: false
 
   application:
     name: unishare
@@ -110,4 +114,4 @@ unishare:
     ttl: 5m
   redis:
     diagnostics:
-      enabled: true  # Temporarily enabled for diagnosis - set to false after
+      enabled: false  # Diagnostic completed - root cause: multiple TLS handshakes (fixed)
