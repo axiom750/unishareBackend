@@ -18,12 +18,8 @@ spring:
         pool:
           max-active: 8
           max-idle: 8
-          min-idle: 1  # Pre-warm 1 connection to amortize TLS handshake cost
+          min-idle: 0
           max-wait: -1ms
-          # Disable validation that triggers extra TLS handshakes
-          test-on-borrow: false
-          test-on-return: false
-          test-while-idle: false
 
   application:
     name: unishare
@@ -65,7 +61,7 @@ frontend:
 google:
   clientId: ${GOOGLE_CLIENT_ID:}
   clientSecret: ${GOOGLE_CLIENT_SECRET:}
-  redirectURL: ${GOOGLE_REDIRECT_URL:http://localhost:8080/api/auth/google/callback}
+  redirectURL: ${GOOGLE_REDIRECT_URL:https://unisharebeta.onrender.com/api/auth/google/callback}
   auth:
     endPoint: https://oauth2.googleapis.com/token
 
@@ -79,7 +75,7 @@ production:
 github:
   clientId: ${GITHUB_CLIENT_ID:}
   clientSecret: ${GITHUB_CLIENT_SECRET:}
-  redirectUrl: ${GITHUB_REDIRECT_URL:http://localhost:8080/api/auth/github/callback}
+  redirectUrl: ${GITHUB_REDIRECT_URL:https://unisharebeta.onrender.com/api/auth/github/callback}
   tokenUrl: https://github.com/login/oauth/access_token
   userUrl: https://api.github.com/user
 
@@ -114,4 +110,4 @@ unishare:
     ttl: 5m
   redis:
     diagnostics:
-      enabled: false  # Diagnostic completed - root cause: multiple TLS handshakes (fixed)
+      enabled: false  # Diagnostic disabled - runtime performance is excellent (~150ms)
