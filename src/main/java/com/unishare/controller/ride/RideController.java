@@ -1,5 +1,6 @@
 package com.unishare.controller.ride;
 
+import com.unishare.annotation.Permission;
 import com.unishare.dto.response.MessageResponse;
 import com.unishare.dto.response.PageResponse;
 import com.unishare.dto.request.ride.RideCreateRequest;
@@ -10,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -22,6 +24,14 @@ public class RideController {
     private final RideService rideService;
     private final RideRequestService rideRequestService;
 
+    @PreAuthorize("RIDE_RIDE_CREATE")
+    @Permission(
+            id = "0199c5c4-7b2a-7abc-9e31-4f5a7e8d21c4",
+            displayName = "Create Ride",
+            description = "Allows a user to create a ride.",
+            baseEntity = Ride.class,
+            reachableEntities = {}
+    )
     @PostMapping
     public ResponseEntity<Ride> createRide(@Valid @RequestBody RideCreateRequest request) {
 

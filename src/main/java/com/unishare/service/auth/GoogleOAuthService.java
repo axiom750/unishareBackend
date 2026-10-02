@@ -25,6 +25,7 @@ public class GoogleOAuthService {
     private final RestTemplate restTemplate;
     private final UserService userService;
     private final JwtService jwtService;
+    private final RoleService roleService;
 
     private GoogleIdTokenVerifier verifier;
 
@@ -82,7 +83,7 @@ public class GoogleOAuthService {
             String jwt = jwtService.generateToken(
                     user.getId(),
                     user.getEmail(),
-                    user.getRole().name()
+                    roleService.getPrimaryRoleName(user.getRoles())
             );
             System.out.println("DEBUG: JWT generated successfully");
 

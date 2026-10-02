@@ -32,7 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
-src/main/resources/application.yaml
+src/main/resources/application-local.yaml
 src/main/docs/
 src/main/notes/
 /docs/

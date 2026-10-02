@@ -2,6 +2,7 @@ package com.unishare.controller.user;
 
 import com.unishare.dto.response.user.UserProfileResponse;
 import com.unishare.dto.response.user.UserResponse;
+import com.unishare.entity.auth.Role;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.service.user.UserService;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/auth")
@@ -125,7 +127,9 @@ public class UserController {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
-                .role(user.getRole())
+                .roles(user.getRoles().stream()
+                        .map(Role::getName)
+                        .collect(Collectors.toSet()))
                 .authProvider(user.getAuthProvider())
                 .active(user.isActive())
                 .profile(profileResponse)

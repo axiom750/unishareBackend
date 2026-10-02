@@ -1,6 +1,14 @@
 # Production Configuration for UniShare Backend
 # This is the COMPLETE production configuration
 # All values use environment variables for security
+#
+# DEPLOYMENT CHECKLIST:
+# 1. Set SPRING_PROFILES_ACTIVE=prod
+# 2. Deploy with security.seed.enabled=true to create roles
+# 3. Create SUPERUSER account via normal registration
+# 4. Set SUPERUSER_BOOTSTRAP_ENABLED=true to assign SUPERUSER role
+# 5. Restart application to bootstrap SUPERUSER
+# 6. (Optional) Set SUPERUSER_BOOTSTRAP_ENABLED=false after successful bootstrap
 
 spring:
   data:
@@ -40,7 +48,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: update  # PRODUCTION: Only updates schema, does not drop tables
     open-in-view: false
 
   servlet:
@@ -105,9 +113,28 @@ logging:
     org.hibernate.orm.jdbc.bind: WARN
     org.hibernate.orm.jdbc.extract: WARN
 
+# ============================================================
+# SECURITY CONFIGURATION - CRITICAL FOR RBAC SYSTEM
+# ============================================================
 unishare:
   idempotency:
     ttl: 5m
   redis:
     diagnostics:
-      enabled: false  # Diagnostic disabled - runtime performance is excellent (~150ms)
+      enabled: false  # Set to true to enable detailed TCP/TLS network diagnostics
+  
+  # RBAC Security Configuration
+  security:
+    seed:
+      enabled: true  # REQUIRED: Creates default roles (USER, MODERATOR, ADMIN, SUPERUSER)
+    
+    superuser:
+      # STEP 1: Keep enabled=false, deploy, create SUPERUSER account via registration
+      # STEP 2: Set enabled=true, restart to bootstrap SUPERUSER role
+      # STEP 3: (Optional) Set back to false after successful bootstrap
+      enabled: ${SUPERUSER_BOOTSTRAP_ENABLED:false}
+      email: ${SUPERUSER_EMAIL:}  # REQUIRED: Email of user to receive SUPERUSER role
+    
+    permission:
+      scanner:
+        enabled: true  # REQUIRED: Scans @Permission annotations and syncs to database

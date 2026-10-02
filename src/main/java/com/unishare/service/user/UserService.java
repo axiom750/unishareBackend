@@ -3,9 +3,9 @@ package com.unishare.service.user;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.enums.auth.AuthProvider;
-import com.unishare.enums.user.Roles;
 import com.unishare.repository.user.UserProfileRepository;
 import com.unishare.repository.user.UserRepository;
+import com.unishare.service.auth.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +23,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RoleService roleService;
 
     public Optional<User> findByEmail(String email) {
         return userRepository.findByEmail(email);
@@ -95,7 +96,7 @@ public class UserService {
                 .username(username)
                 .googleId(googleId)
                 .authProvider(AuthProvider.GOOGLE)
-                .role(Roles.USER)
+                .roles(roleService.getDefaultUserRoles()) // Use RoleService instead of enum
                 .active(true)
                 .password(
                         passwordEncoder.encode(
@@ -106,7 +107,7 @@ public class UserService {
 
 
         User savedUser = userRepository.save(newUser);
-        log.info("[OAUTH] New Google user created - ID: {}", savedUser.getId());
+        log.info("[OAUTH] New Google user created - ID: {} with default USER role", savedUser.getId());
 
         UserProfile profile = UserProfile.builder()
                         .user(savedUser)

@@ -1,16 +1,18 @@
 package com.unishare.dto.response.user;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.unishare.entity.auth.Role;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.enums.auth.AuthProvider;
-import com.unishare.enums.user.Roles;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -25,7 +27,11 @@ public class UserDTO {
 
     private String username;
 
-    private Roles role;
+    /**
+     * User's roles - represents the new N:N relationship.
+     * Returns role names as strings for API compatibility.
+     */
+    private Set<String> roles;
 
     private AuthProvider authProvider;
 
@@ -40,11 +46,18 @@ public class UserDTO {
             return null;
         }
 
+        // Convert Set<Role> to Set<String> role names
+        Set<String> roleNames = user.getRoles() != null
+                ? user.getRoles().stream()
+                        .map(Role::getName)
+                        .collect(Collectors.toSet())
+                : Set.of();
+
         return UserDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
-                .role(user.getRole())
+                .roles(roleNames)  // Use role names instead of enum
                 .authProvider(user.getAuthProvider())
                 .active(user.isActive())
                 .profile(UserProfileDTO.fromEntity(user.getProfile()))

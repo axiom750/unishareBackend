@@ -1,0 +1,14 @@
+# Main Application Configuration
+# This file determines which profile is active
+# 
+# For local development: uses 'local' profile (application-local.yaml)
+# For production deployment: uses 'prod' profile (application-prod.yaml)
+#
+# Set active profile via:
+# - Environment variable: SPRING_PROFILES_ACTIVE=local or prod
+# - Command line: --spring.profiles.active=local
+# - Default below: local
+
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}

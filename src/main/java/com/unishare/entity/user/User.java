@@ -1,12 +1,14 @@
 package com.unishare.entity.user;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.unishare.entity.auth.Role;
 import com.unishare.enums.auth.AuthProvider;
-import com.unishare.enums.user.Roles;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -42,10 +44,14 @@ public class User {
     @Builder.Default
     private AuthProvider authProvider = AuthProvider.UNISHARE;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
     @Builder.Default
-    private Roles role = Roles.USER;
+    private Set<Role> roles = new HashSet<>();
 
     @Column(nullable = false)
     @Builder.Default
@@ -73,12 +79,8 @@ public class User {
         createdAt = now;
         updatedAt = now;
 
-        if (role == null) {
-            role = Roles.USER;
-        }
-
-        if (authProvider == null) {
-            authProvider = AuthProvider.UNISHARE;
+        if (roles == null) {
+            roles = new HashSet<>();
         }
 
         active = true;

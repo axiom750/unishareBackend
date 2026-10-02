@@ -7,8 +7,6 @@ import com.unishare.dto.response.auth.AuthResponseDTO;
 import com.unishare.dto.response.user.UserDTO;
 import com.unishare.entity.user.User;
 import com.unishare.enums.auth.AuthProvider;
-import com.unishare.enums.user.Roles;
-import com.unishare.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,9 +21,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UnishareAuthService {
 
-    private final UserService userService;
+    private final com.unishare.service.user.UserService userService;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final RoleService roleService;
 
     @Value("${production.status}")
     private boolean isProduction;
@@ -49,7 +48,7 @@ public class UnishareAuthService {
         newUser.setEmail(request.getEmail());
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
         newUser.setActive(true);
-        newUser.setRole(Roles.USER);
+        newUser.setRoles(roleService.getDefaultUserRoles()); // Use RoleService
         newUser.setAuthProvider(AuthProvider.UNISHARE);
 
         User savedUser = userService.save(newUser);
@@ -155,10 +154,13 @@ public class UnishareAuthService {
     private ResponseEntity<AuthResponseDTO> buildLoginResponse(User user, String message) {
         log.debug("[AUTH] Building login response with JWT for user ID: {}", user.getId());
         
+        // Use RoleService to get primary role name for JWT
+        String primaryRole = roleService.getPrimaryRoleName(user.getRoles());
+        
         String jwt = jwtService.generateToken(
                 user.getId(),
                 user.getEmail(),
-                user.getRole().name()
+                primaryRole
         );
 
         ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", jwt)

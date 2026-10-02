@@ -28,6 +28,7 @@ public class GithubOAuthService {
     private final UserProfileRepository userProfileRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final RoleService roleService;
 
     @Value("${github.clientId}")
     private String clientId;
@@ -100,7 +101,7 @@ public class GithubOAuthService {
                     jwtService.generateToken(
                             user.getId(),
                             user.getEmail(),
-                            user.getRole().name()
+                            roleService.getPrimaryRoleName(user.getRoles())
                     );
 
 
@@ -326,6 +327,7 @@ public class GithubOAuthService {
         newUser.setUsername(username);
         newUser.setAuthProvider(AuthProvider.GITHUB);
         newUser.setActive(true);
+        newUser.setRoles(roleService.getDefaultUserRoles()); // Assign default roles
         newUser.setPassword(
                 passwordEncoder.encode(
                         UUID.randomUUID().toString()
