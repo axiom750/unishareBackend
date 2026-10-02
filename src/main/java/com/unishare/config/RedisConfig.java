@@ -9,31 +9,42 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 /**
- * Redis Configuration with explicit Lettuce timeout settings.
+ * Redis/Valkey Configuration with explicit Lettuce timeout settings.
  * 
  * This configuration ensures that both TCP connection timeout and Redis command timeout
- * are properly set for cloud Redis instances (Upstash) where network latency is higher.
+ * are properly set for cloud Redis-compatible instances (Aiven Valkey) where network
+ * latency and TLS handshake overhead require longer timeouts.
+ * 
+ * Current Backend: Aiven Valkey 9.1
+ * - Host: unishare-redis-superuser-2e6d.d.aivencloud.com
+ * - Port: 16660
+ * - TLS: Required
+ * - Protocol: Redis-compatible (Valkey)
  * 
  * Configuration:
  * - Socket connect timeout: 10 seconds (for TCP connection establishment)
- * - Command timeout: 10 seconds (for Redis operations)
+ * - Command timeout: 10 seconds (for Redis/Valkey operations)
  * - Auto-reconnect: enabled by default
  * 
  * Why explicit configuration is needed:
- * - Cloud Redis (Upstash) has higher latency than localhost (~200-500ms baseline)
- * - TLS handshake adds additional latency
- * - Default 2-second timeout is insufficient for remote connections
- * - Lettuce may perform internal retries, multiplying the total time
+ * - Cloud Redis/Valkey has higher latency than localhost (~100-500ms baseline)
+ * - TLS handshake adds 200-500ms additional latency
+ * - Network variance in cloud environments
+ * - Default 2-second timeout is insufficient for reliable remote connections
  * 
  * Architecture:
  * <pre>
+ * Business Service
+ *     ↓
+ * RedisService
+ *     ↓
  * StringRedisTemplate
  *     ↓
  * LettuceConnectionFactory (configured by Spring Boot auto-config)
  *     ↓
  * ClientOptions (this configuration)
  *     ↓
- * Upstash Redis
+ * Aiven Valkey (Redis-compatible)
  * </pre>
  * 
  * @see org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
@@ -47,6 +58,10 @@ public class RedisConfig {
      * This customizer is applied to the auto-configured LettuceConnectionFactory,
      * so we don't need to create a custom connection factory bean.
      * 
+     * Valkey Compatibility:
+     * Valkey is a Redis fork that maintains full Redis protocol compatibility.
+     * No special configuration is needed - Lettuce treats it as Redis.
+     * 
      * @return Lettuce client configuration customizer
      */
     @Bean
@@ -59,13 +74,14 @@ public class RedisConfig {
                     .build();
             
             // Configure client options
+            // Valkey is Redis-compatible, so standard ClientOptions work
             ClientOptions clientOptions = ClientOptions.builder()
                     .socketOptions(socketOptions)
                     .build();
             
             // Apply configuration
             clientConfigurationBuilder
-                    .commandTimeout(Duration.ofSeconds(10))  // Redis command timeout
+                    .commandTimeout(Duration.ofSeconds(10))  // Redis/Valkey command timeout
                     .clientOptions(clientOptions);
         };
     }

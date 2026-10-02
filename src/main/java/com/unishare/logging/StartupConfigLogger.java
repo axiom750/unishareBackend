@@ -167,36 +167,38 @@ public class StartupConfigLogger {
     }
 
     /**
-     * Redis configuration and connectivity test with detailed phase diagnostics
+     * Redis/Valkey configuration and connectivity test with detailed phase diagnostics
      */
     private void logRedisConfigAndTest() {
         log.info("============================================================");
-        log.info("REDIS CONNECTIVITY DIAGNOSTIC");
+        log.info("VALKEY CONNECTIVITY DIAGNOSTIC");
         log.info("============================================================");
         log.info("Configuration:");
+        log.info("  Provider        : Aiven");
+        log.info("  Engine          : Valkey 9.1 (Redis-compatible)");
         log.info("  Host            : {}", redisHost);
         log.info("  Port            : {}", redisPort);
         log.info("  Username        : {}", redisUsername);
         log.info("  SSL             : {}", redisSsl.equalsIgnoreCase("true") ? "ENABLED" : "DISABLED");
-        log.info("  Command Timeout : {}", redisTimeout);
         log.info("  Connect Timeout : 10000ms (Lettuce SocketOptions)");
+        log.info("  Command Timeout : {}", redisTimeout);
         log.info("  Password        : {}", configuredStatus(redisPassword));
         log.info("");
         log.info("Connectivity:");
         
         // Perform detailed connectivity test
-        testRedisConnectivityDetailed();
+        testValkeyConnectivityDetailed();
     }
 
     /**
-     * Detailed Redis connectivity test with phase-by-phase timing
+     * Detailed Valkey connectivity test with phase-by-phase timing
      */
-    private void testRedisConnectivityDetailed() {
+    private void testValkeyConnectivityDetailed() {
         long totalStart = System.nanoTime();
         RedisConnection connection = null;
         
         try {
-            // Phase 1: DNS Resolution (if we can measure it)
+            // Phase 1: DNS Resolution
             long dnsStart = System.nanoTime();
             java.net.InetAddress address = null;
             try {
@@ -216,11 +218,11 @@ public class StartupConfigLogger {
                 // DNS failed - cannot continue
                 redisConnected = false;
                 redisConnectionError = "DNS resolution failed: " + e.getMessage();
-                logFinalConnectionStatus(System.nanoTime() - totalStart, "DNS_RESOLUTION_FAILURE");
+                logFinalValkeyStatus(System.nanoTime() - totalStart, "DNS_FAILED");
                 return;
             }
             
-            // Phase 2-5: Connection Factory (Lettuce manages TCP, TLS, Auth, Redis handshake together)
+            // Phase 2-4: Connection Initialization (Lettuce manages TCP, TLS, Auth together)
             log.info("  Connection Initialization:");
             long connectionStart = System.nanoTime();
             
@@ -229,39 +231,46 @@ public class StartupConfigLogger {
                 long connectionDuration = (System.nanoTime() - connectionStart) / 1_000_000;
                 
                 log.info("    Status      : SUCCESS");
-                log.info("    Duration    : {} ms (includes TCP, TLS, Auth, Handshake)", String.format("%,d", connectionDuration));
-                log.info("    Note        : Lettuce manages connection phases internally");
+                log.info("    Duration    : {} ms", String.format("%,d", connectionDuration));
+                log.info("    Note        : Includes TCP, TLS, Auth (managed by Lettuce)");
+                
+                // Log individual phase status (NOT_MEASURABLE since Lettuce bundles them)
+                log.info("  TCP Connection:");
+                log.info("    Status      : NOT_MEASURABLE");
+                log.info("    Reason      : Managed internally by Lettuce");
+                
+                log.info("  TLS Handshake:");
+                log.info("    Status      : NOT_MEASURABLE");
+                log.info("    Reason      : Managed internally by Lettuce");
+                
+                log.info("  Redis/Valkey Handshake:");
+                log.info("    Status      : NOT_MEASURABLE");
+                log.info("    Reason      : Managed internally by Lettuce");
                 
             } catch (Exception e) {
                 long connectionDuration = (System.nanoTime() - connectionStart) / 1_000_000;
                 
                 // Connection initialization failed
-                String errorType = classifyRedisError(e);
+                String errorType = classifyValkeyError(e);
                 String errorMessage = extractMeaningfulError(e);
                 String rootCauseClass = extractRootCauseClass(e);
+                String failurePhase = determineFailurePhase(e);
                 
                 log.error("    Status      : FAILED");
                 log.error("    Duration    : {} ms", String.format("%,d", connectionDuration));
-                log.error("    Phase       : {}", determineFailurePhase(e));
+                log.error("    Phase       : {}", failurePhase);
                 
                 redisConnected = false;
                 redisConnectionError = errorMessage;
                 
-                logFinalConnectionStatus(System.nanoTime() - totalStart, errorType);
-                
-                // Log detailed error info
-                log.error("  Error Details:");
-                log.error("    Type        : {}", errorType);
-                log.error("    Message     : {}", errorMessage);
-                log.error("    Root Cause  : {}", rootCauseClass);
-                
-                // Log full exception at DEBUG for deep troubleshooting
-                log.debug("[REDIS] Full connection exception chain:", e);
+                // Log detailed error with cause chain
+                logValkeyErrorChain(e, errorType, errorMessage, rootCauseClass);
+                logFinalValkeyStatus(System.nanoTime() - totalStart, errorType);
                 
                 return;
             }
             
-            // Phase 6: PING Command
+            // Phase 5: PING Command
             log.info("  PING Command:");
             long pingStart = System.nanoTime();
             
@@ -277,7 +286,7 @@ public class StartupConfigLogger {
                 redisConnected = true;
                 redisConnectionError = null;
                 
-                logFinalConnectionStatus(System.nanoTime() - totalStart, null);
+                logFinalValkeyStatus(System.nanoTime() - totalStart, null);
                 
             } catch (Exception e) {
                 long pingDuration = (System.nanoTime() - pingStart) / 1_000_000;
@@ -285,17 +294,14 @@ public class StartupConfigLogger {
                 log.error("    Status      : FAILED");
                 log.error("    Duration    : {} ms", String.format("%,d", pingDuration));
                 
-                String errorType = classifyRedisError(e);
+                String errorType = classifyValkeyError(e);
                 String errorMessage = extractMeaningfulError(e);
                 
                 redisConnected = false;
                 redisConnectionError = errorMessage;
                 
-                logFinalConnectionStatus(System.nanoTime() - totalStart, errorType);
-                
-                log.error("  Error Details:");
-                log.error("    Type        : {}", errorType);
-                log.error("    Message     : {}", errorMessage);
+                logValkeyErrorChain(e, errorType, errorMessage, extractRootCauseClass(e));
+                logFinalValkeyStatus(System.nanoTime() - totalStart, errorType);
             }
             
         } finally {
@@ -304,16 +310,40 @@ public class StartupConfigLogger {
                 try {
                     connection.close();
                 } catch (Exception e) {
-                    log.warn("[REDIS] Error closing test connection: {}", e.getMessage());
+                    log.warn("[VALKEY] Error closing test connection: {}", e.getMessage());
                 }
             }
         }
     }
 
     /**
-     * Log final connection status summary
+     * Log Valkey error details with complete cause chain
      */
-    private void logFinalConnectionStatus(long totalNanos, String errorType) {
+    private void logValkeyErrorChain(Exception e, String errorType, String errorMessage, String rootCauseClass) {
+        log.error("  Error Details:");
+        log.error("    Type        : {}", errorType);
+        log.error("    Message     : {}", errorMessage);
+        log.error("    Root Cause  : {}", rootCauseClass);
+        
+        // Log cause chain
+        log.error("  Cause Chain:");
+        Throwable current = e;
+        int level = 1;
+        while (current != null && level <= 5) {  // Limit to 5 levels to avoid excessive logging
+            log.error("    {}. {}: {}", level, current.getClass().getSimpleName(), 
+                     current.getMessage() != null ? sanitizeErrorMessage(current.getMessage()) : "");
+            current = current.getCause();
+            level++;
+        }
+        
+        // Log full exception at DEBUG for deep troubleshooting
+        log.debug("[VALKEY] Full connection exception chain:", e);
+    }
+
+    /**
+     * Log final Valkey connection status summary
+     */
+    private void logFinalValkeyStatus(long totalNanos, String errorType) {
         long totalMs = totalNanos / 1_000_000;
         
         log.info("------------------------------------------------------------");
@@ -335,6 +365,66 @@ public class StartupConfigLogger {
         }
         
         log.info("============================================================");
+    }
+
+    /**
+     * Classify Valkey connection errors by inspecting the entire cause chain
+     */
+    private String classifyValkeyError(Exception e) {
+        if (e == null) {
+            return "UNKNOWN";
+        }
+        
+        // Check entire exception chain
+        Throwable current = e;
+        while (current != null) {
+            String className = current.getClass().getName().toLowerCase();
+            String message = current.getMessage() != null ? current.getMessage().toLowerCase() : "";
+            
+            // Check for specific exception types and messages
+            if (className.contains("rediscommandtimeoutexception") || 
+                message.contains("command timed out") ||
+                message.contains("connection initialization timed out")) {
+                return "CONNECTION_TIMEOUT";
+            }
+            
+            if (message.contains("connection refused") || className.contains("connectexception")) {
+                return "TCP_CONNECT_FAILED";
+            }
+            
+            if (message.contains("unknown host") || 
+                message.contains("name or service not known") ||
+                className.contains("unknownhostexception")) {
+                return "DNS_FAILED";
+            }
+            
+            if (className.contains("sslexception") || 
+                className.contains("sslhandshakeexception") ||
+                message.contains("ssl handshake")) {
+                return "TLS_HANDSHAKE_FAILED";
+            }
+            
+            if (message.contains("noauth") || 
+                message.contains("authentication") || 
+                message.contains("auth failed") ||
+                message.contains("invalid password")) {
+                return "REDIS_HANDSHAKE_FAILED";
+            }
+            
+            if (message.contains("timeout") || message.contains("timed out")) {
+                return "CONNECTION_TIMEOUT";
+            }
+            
+            current = current.getCause();
+        }
+        
+        // Check top-level class name
+        String className = e.getClass().getSimpleName();
+        if (className.contains("Connection")) {
+            return "CONNECTION_TIMEOUT";
+        }
+        
+        return "UNKNOWN";
     }
 
     /**
@@ -488,66 +578,6 @@ public class StartupConfigLogger {
     }
 
     /**
-     * Classify Redis connection errors by inspecting the entire cause chain
-     */
-    private String classifyRedisError(Exception e) {
-        if (e == null) {
-            return "UNKNOWN";
-        }
-        
-        // Check entire exception chain
-        Throwable current = e;
-        while (current != null) {
-            String className = current.getClass().getName().toLowerCase();
-            String message = current.getMessage() != null ? current.getMessage().toLowerCase() : "";
-            
-            // Check for specific exception types and messages
-            if (className.contains("rediscommandtimeoutexception") || 
-                message.contains("command timed out") ||
-                message.contains("connection initialization timed out")) {
-                return "CONNECTION_TIMEOUT";
-            }
-            
-            if (message.contains("connection refused") || className.contains("connectexception")) {
-                return "CONNECTION_REFUSED";
-            }
-            
-            if (message.contains("unknown host") || 
-                message.contains("name or service not known") ||
-                className.contains("unknownhostexception")) {
-                return "DNS_RESOLUTION_FAILURE";
-            }
-            
-            if (className.contains("sslexception") || 
-                className.contains("sslhandshakeexception") ||
-                message.contains("ssl handshake")) {
-                return "SSL_HANDSHAKE_FAILURE";
-            }
-            
-            if (message.contains("noauth") || 
-                message.contains("authentication") || 
-                message.contains("auth failed") ||
-                message.contains("invalid password")) {
-                return "AUTHENTICATION_FAILURE";
-            }
-            
-            if (message.contains("timeout") || message.contains("timed out")) {
-                return "CONNECTION_TIMEOUT";
-            }
-            
-            current = current.getCause();
-        }
-        
-        // Check top-level class name
-        String className = e.getClass().getSimpleName();
-        if (className.contains("Connection")) {
-            return "CONNECTION_FAILURE";
-        }
-        
-        return "UNKNOWN";
-    }
-
-    /**
      * Sanitize error message for logging (remove any potential secrets)
      */
     private String sanitizeErrorMessage(String message) {
@@ -623,10 +653,10 @@ public class StartupConfigLogger {
 
         // Check each required configuration
         allConfigured &= logComponentStatus("Database        ", databaseUrl, databaseUsername, databasePassword);
-        allConfigured &= logComponentStatus("Redis Config    ", redisHost, redisPassword);
+        allConfigured &= logComponentStatus("Valkey Config   ", redisHost, redisPassword);
         
-        // Use stored Redis connectivity test result
-        log.info("  Redis Connection: {}", redisConnected ? "CONNECTED" : "FAILED");
+        // Use stored Valkey connectivity test result
+        log.info("  Valkey Connection: {}", redisConnected ? "CONNECTED" : "FAILED");
         allConfigured &= redisConnected;
         
         allConfigured &= logComponentStatus("Google OAuth    ", googleClientId, googleClientSecret);
@@ -654,7 +684,7 @@ public class StartupConfigLogger {
             log.error("❌ Configuration validation failed - check FAILED/[MISSING] entries above");
             
             if (!redisConnected && redisConnectionError != null) {
-                log.error("❌ Redis Connection Failed: {}", redisConnectionError);
+                log.error("❌ Valkey Connection Failed: {}", redisConnectionError);
             }
         }
     }

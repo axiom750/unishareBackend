@@ -5,9 +5,11 @@ spring:
       port: ${REDIS_PORT:6379}
       username: ${REDIS_USERNAME:default}
       password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:10000ms}
+
       ssl:
         enabled: ${REDIS_SSL:false}
-      timeout: 2000ms
+
       repositories:
         enabled: false
   datasource:
