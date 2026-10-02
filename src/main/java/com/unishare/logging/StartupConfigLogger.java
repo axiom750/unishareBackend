@@ -167,71 +167,135 @@ public class StartupConfigLogger {
     }
 
     /**
-     * Redis configuration and connectivity test
+     * Redis configuration and connectivity test with detailed phase diagnostics
      */
     private void logRedisConfigAndTest() {
         log.info("============================================================");
-        log.info("REDIS CONFIGURATION");
+        log.info("REDIS CONNECTIVITY DIAGNOSTIC");
         log.info("============================================================");
-        log.info("Host        : {}", redisHost);
-        log.info("Port        : {}", redisPort);
-        log.info("Username    : {}", redisUsername);
-        log.info("SSL         : {}", redisSsl);
-        log.info("Timeout     : {}", redisTimeout);
-        log.info("Password    : {}", configuredStatus(redisPassword));
+        log.info("Configuration:");
+        log.info("  Host        : {}", redisHost);
+        log.info("  Port        : {}", redisPort);
+        log.info("  Username    : {}", redisUsername);
+        log.info("  SSL         : {}", redisSsl.equalsIgnoreCase("true") ? "ENABLED" : "DISABLED");
+        log.info("  Timeout     : {}", redisTimeout);
+        log.info("  Password    : {}", configuredStatus(redisPassword));
+        log.info("");
+        log.info("Connectivity:");
         
-        // Perform actual connectivity test
-        testRedisConnectivity();
+        // Perform detailed connectivity test
+        testRedisConnectivityDetailed();
     }
 
     /**
-     * Test actual Redis connectivity with PING command
+     * Detailed Redis connectivity test with phase-by-phase timing
      */
-    private void testRedisConnectivity() {
-        log.info("============================================================");
-        log.info("REDIS CONNECTIVITY TEST");
-        log.info("============================================================");
-        
-        long startTime = System.nanoTime();
+    private void testRedisConnectivityDetailed() {
+        long totalStart = System.nanoTime();
         RedisConnection connection = null;
         
         try {
-            connection = redisConnectionFactory.getConnection();
+            // Phase 1: DNS Resolution (if we can measure it)
+            long dnsStart = System.nanoTime();
+            java.net.InetAddress address = null;
+            try {
+                address = java.net.InetAddress.getByName(redisHost);
+                long dnsDuration = (System.nanoTime() - dnsStart) / 1_000_000;
+                log.info("  DNS Resolution:");
+                log.info("    Status      : SUCCESS");
+                log.info("    Duration    : {} ms", String.format("%,d", dnsDuration));
+                log.info("    Resolved IP : {}", address.getHostAddress());
+            } catch (java.net.UnknownHostException e) {
+                long dnsDuration = (System.nanoTime() - dnsStart) / 1_000_000;
+                log.error("  DNS Resolution:");
+                log.error("    Status      : FAILED");
+                log.error("    Duration    : {} ms", String.format("%,d", dnsDuration));
+                log.error("    Error       : {}", e.getMessage());
+                
+                // DNS failed - cannot continue
+                redisConnected = false;
+                redisConnectionError = "DNS resolution failed: " + e.getMessage();
+                logFinalConnectionStatus(System.nanoTime() - totalStart, "DNS_RESOLUTION_FAILURE");
+                return;
+            }
             
-            // Execute PING command
-            String pingResponse = connection.ping();
+            // Phase 2-5: Connection Factory (Lettuce manages TCP, TLS, Auth, Redis handshake together)
+            log.info("  Connection Initialization:");
+            long connectionStart = System.nanoTime();
             
-            long duration = (System.nanoTime() - startTime) / 1_000_000;
+            try {
+                connection = redisConnectionFactory.getConnection();
+                long connectionDuration = (System.nanoTime() - connectionStart) / 1_000_000;
+                
+                log.info("    Status      : SUCCESS");
+                log.info("    Duration    : {} ms (includes TCP, TLS, Auth, Handshake)", String.format("%,d", connectionDuration));
+                log.info("    Note        : Lettuce manages connection phases internally");
+                
+            } catch (Exception e) {
+                long connectionDuration = (System.nanoTime() - connectionStart) / 1_000_000;
+                
+                // Connection initialization failed
+                String errorType = classifyRedisError(e);
+                String errorMessage = extractMeaningfulError(e);
+                String rootCauseClass = extractRootCauseClass(e);
+                
+                log.error("    Status      : FAILED");
+                log.error("    Duration    : {} ms", String.format("%,d", connectionDuration));
+                log.error("    Phase       : {}", determineFailurePhase(e));
+                
+                redisConnected = false;
+                redisConnectionError = errorMessage;
+                
+                logFinalConnectionStatus(System.nanoTime() - totalStart, errorType);
+                
+                // Log detailed error info
+                log.error("  Error Details:");
+                log.error("    Type        : {}", errorType);
+                log.error("    Message     : {}", errorMessage);
+                log.error("    Root Cause  : {}", rootCauseClass);
+                
+                // Log full exception at DEBUG for deep troubleshooting
+                log.debug("[REDIS] Full connection exception chain:", e);
+                
+                return;
+            }
             
-            // Success - store result
-            redisConnected = true;
-            redisConnectionError = null;
+            // Phase 6: PING Command
+            log.info("  PING Command:");
+            long pingStart = System.nanoTime();
             
-            log.info("Status      : CONNECTED");
-            log.info("Ping        : {}", pingResponse != null ? pingResponse : "PONG");
-            log.info("Duration    : {} ms", String.format("%,d", duration));
-            log.info("============================================================");
-            
-        } catch (Exception e) {
-            long duration = (System.nanoTime() - startTime) / 1_000_000;
-            
-            // Failure - store result
-            redisConnected = false;
-            redisConnectionError = extractRootCauseMessage(e);
-            
-            String errorType = classifyRedisError(e);
-            String errorMessage = extractMeaningfulError(e);
-            String rootCauseClass = extractRootCauseClass(e);
-            
-            log.error("Status      : FAILED");
-            log.error("Duration    : {} ms", String.format("%,d", duration));
-            log.error("Error Type  : {}", errorType);
-            log.error("Error       : {}", errorMessage);
-            log.error("Root Cause  : {}", rootCauseClass);
-            log.error("============================================================");
-            
-            // Log full exception at DEBUG level for troubleshooting
-            log.debug("[REDIS] Full connection test exception:", e);
+            try {
+                String pingResponse = connection.ping();
+                long pingDuration = (System.nanoTime() - pingStart) / 1_000_000;
+                
+                log.info("    Status      : SUCCESS");
+                log.info("    Response    : {}", pingResponse != null ? pingResponse : "PONG");
+                log.info("    Duration    : {} ms", String.format("%,d", pingDuration));
+                
+                // Success!
+                redisConnected = true;
+                redisConnectionError = null;
+                
+                logFinalConnectionStatus(System.nanoTime() - totalStart, null);
+                
+            } catch (Exception e) {
+                long pingDuration = (System.nanoTime() - pingStart) / 1_000_000;
+                
+                log.error("    Status      : FAILED");
+                log.error("    Duration    : {} ms", String.format("%,d", pingDuration));
+                
+                String errorType = classifyRedisError(e);
+                String errorMessage = extractMeaningfulError(e);
+                
+                redisConnected = false;
+                redisConnectionError = errorMessage;
+                
+                logFinalConnectionStatus(System.nanoTime() - totalStart, errorType);
+                
+                log.error("  Error Details:");
+                log.error("    Type        : {}", errorType);
+                log.error("    Message     : {}", errorMessage);
+            }
             
         } finally {
             // Clean up connection
@@ -243,6 +307,98 @@ public class StartupConfigLogger {
                 }
             }
         }
+    }
+
+    /**
+     * Log final connection status summary
+     */
+    private void logFinalConnectionStatus(long totalNanos, String errorType) {
+        long totalMs = totalNanos / 1_000_000;
+        
+        log.info("------------------------------------------------------------");
+        log.info("Final:");
+        log.info("  Status      : {}", redisConnected ? "CONNECTED" : "FAILED");
+        log.info("  Total       : {} ms", String.format("%,d", totalMs));
+        
+        if (!redisConnected && errorType != null) {
+            log.error("  Failure     : {}", errorType);
+        }
+        
+        // Analyze timing discrepancy if applicable
+        if (!redisConnected && totalMs > 5000) {
+            long configuredTimeoutMs = parseTimeout(redisTimeout);
+            log.warn("  TIMING NOTE : Total duration ({} ms) significantly exceeds configured timeout ({} ms)", 
+                     String.format("%,d", totalMs), configuredTimeoutMs);
+            log.warn("                This suggests multiple connection attempts or retries by Lettuce");
+            log.warn("                Check Lettuce ClientOptions for retry/reconnect configuration");
+        }
+        
+        log.info("============================================================");
+    }
+
+    /**
+     * Parse timeout string to milliseconds
+     */
+    private long parseTimeout(String timeout) {
+        if (timeout == null || timeout.isEmpty()) {
+            return 2000;
+        }
+        
+        try {
+            if (timeout.endsWith("ms")) {
+                return Long.parseLong(timeout.substring(0, timeout.length() - 2));
+            } else if (timeout.endsWith("s")) {
+                return Long.parseLong(timeout.substring(0, timeout.length() - 1)) * 1000;
+            } else {
+                return Long.parseLong(timeout);
+            }
+        } catch (NumberFormatException e) {
+            return 2000; // default
+        }
+    }
+
+    /**
+     * Determine which phase failed based on exception
+     */
+    private String determineFailurePhase(Exception e) {
+        if (e == null) {
+            return "UNKNOWN";
+        }
+        
+        Throwable current = e;
+        while (current != null) {
+            String className = current.getClass().getName().toLowerCase();
+            String message = current.getMessage() != null ? current.getMessage().toLowerCase() : "";
+            
+            if (className.contains("unknownhost")) {
+                return "DNS_RESOLUTION";
+            }
+            
+            if (className.contains("connectexception") || message.contains("connection refused")) {
+                return "TCP_CONNECTION";
+            }
+            
+            if (className.contains("sslexception") || className.contains("sslhandshake")) {
+                return "TLS_HANDSHAKE";
+            }
+            
+            if (message.contains("noauth") || message.contains("authentication")) {
+                return "REDIS_AUTHENTICATION";
+            }
+            
+            if (message.contains("connection initialization") || 
+                className.contains("rediscommandtimeout")) {
+                return "REDIS_HANDSHAKE";
+            }
+            
+            if (message.contains("timeout") || message.contains("timed out")) {
+                return "TIMEOUT";
+            }
+            
+            current = current.getCause();
+        }
+        
+        return "UNKNOWN";
     }
 
     /**
