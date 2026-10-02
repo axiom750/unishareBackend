@@ -27,10 +27,7 @@ public class RideRequestController {
     ) {
 
         rideRequestService.requestRide(rideId, dto);
-
-        Page<RideRequest> result =
-                rideRequestService.getMyRideRequests(page, size);
-
+        Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
         return mapPage(result);
     }
 
@@ -40,9 +37,7 @@ public class RideRequestController {
             @RequestParam(defaultValue = "10") int size
     ) {
 
-        Page<RideRequest> result =
-                rideRequestService.getMyRideRequests(page, size);
-
+        Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
         return mapPage(result);
     }
 
@@ -54,10 +49,7 @@ public class RideRequestController {
     ) {
 
         rideRequestService.approveRideRequest(requestId);
-
-        Page<RideRequest> result =
-                rideRequestService.getMyRideRequests(page, size);
-
+        Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
         return mapPage(result);
     }
 
@@ -70,8 +62,7 @@ public class RideRequestController {
 
         rideRequestService.declineRideRequest(requestId);
 
-        Page<RideRequest> result =
-                rideRequestService.getMyRideRequests(page, size);
+        Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
 
         return mapPage(result);
     }
@@ -85,8 +76,7 @@ public class RideRequestController {
 
         rideRequestService.cancelRideRequest(requestId);
 
-        Page<RideRequest> result =
-                rideRequestService.getMyRideRequests(page, size);
+        Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
 
         return mapPage(result);
     }
@@ -98,9 +88,7 @@ public class RideRequestController {
             @RequestParam(defaultValue = "10") int size
     ) {
 
-        Page<RideRequest> result =
-                rideRequestService.getRideRequestsForMyRide(rideId, page, size);
-
+        Page<RideRequest> result = rideRequestService.getRideRequestsForMyRide(rideId, page, size);
         return mapPage(result);
     }
 
@@ -121,8 +109,7 @@ public class RideRequestController {
             @RequestParam(defaultValue = "10") int size
     ) {
 
-        Page<RidePassengerDto> result =
-                rideRequestService.getConfirmedPassengers(rideId, page, size);
+        Page<RidePassengerDto> result = rideRequestService.getConfirmedPassengers(rideId, page, size);
 
         return new PageResponse<>(
                 result.getContent(),

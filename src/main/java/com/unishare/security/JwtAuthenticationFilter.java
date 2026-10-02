@@ -29,7 +29,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String token = extractTokenFromCookies(request);
+        // Try to extract token from Authorization header first, then from cookies
+        String token = extractTokenFromAuthorizationHeader(request);
+        if (token == null) {
+            token = extractTokenFromCookies(request);
+        }
 
         if (token != null && jwtService.isTokenValid(token)) {
 
@@ -53,6 +57,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * Extract JWT token from Authorization header (Bearer scheme).
+     * This supports modern frontend API calls using Authorization: Bearer <token>
+     *
+     * @param request HTTP request
+     * @return JWT token or null if not found
+     */
+    private String extractTokenFromAuthorizationHeader(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7); // Remove "Bearer " prefix
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract JWT token from HTTP-only cookie.
+     * This supports legacy authentication via cookies.
+     *
+     * @param request HTTP request
+     * @return JWT token or null if not found
+     */
     private String extractTokenFromCookies(HttpServletRequest request) {
         if (request.getCookies() == null) return null;
 

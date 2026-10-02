@@ -27,8 +27,7 @@ public class UserController {
     private boolean isProduction;
 
     @GetMapping("/me")
-    public ResponseEntity<?> getUserLoginStatus(
-            Authentication authentication) {
+    public ResponseEntity<?> getUserLoginStatus(Authentication authentication) {
 
 
         if (authentication == null

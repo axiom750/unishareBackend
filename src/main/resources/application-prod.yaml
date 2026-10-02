@@ -1,4 +1,15 @@
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:default}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+      timeout: 2000ms
+      repositories:
+        enabled: false
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
@@ -15,6 +26,7 @@ spring:
       hibernate:
         show_sql: false
         format_sql: false
+      open-in-view: false
   brevo:
     api-key: ${BREVO_API_KEY}
 
@@ -65,3 +77,8 @@ management:
   endpoint:
     health:
       show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.unishare: INFO

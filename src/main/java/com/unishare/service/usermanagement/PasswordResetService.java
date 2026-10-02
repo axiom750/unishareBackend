@@ -1,7 +1,9 @@
 package com.unishare.service.usermanagement;
 
+import com.unishare.dto.response.password.PasswordResetResponse;
 import com.unishare.entity.auth.PasswordResetToken;
 import com.unishare.entity.user.User;
+import com.unishare.enums.auth.AuthProvider;
 import com.unishare.repository.password.PasswordResetTokenRepository;
 import com.unishare.repository.user.UserRepository;
 import com.unishare.service.mail.MailService;
@@ -9,6 +11,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -37,17 +40,35 @@ public class PasswordResetService {
     private String frontendUrl;
 
     @Transactional
-    public void requestPasswordReset(String email) {
+    public ResponseEntity<PasswordResetResponse> requestPasswordReset(String email) {
 
-        log.info("[AUTH] Password reset request received for email domain: {}", 
+        log.info("[AUTH] Password reset request received for email domain: {}",
                 email.substring(email.indexOf("@")));
 
         Optional<User> optionalUser = userRepository.findByEmail(email);
 
+        if(optionalUser.isPresent() && optionalUser.get().getAuthProvider() != AuthProvider.UNISHARE) {
+
+            PasswordResetResponse response = new PasswordResetResponse();
+
+            response.setMessage(
+                    "Please login using " + optionalUser.get().getAuthProvider() +
+                            " as password reset is only available for " + AuthProvider.UNISHARE
+            );
+
+            return ResponseEntity.ok(response);
+        }
+
         // Don't reveal whether the account exists
         if (optionalUser.isEmpty()) {
             log.info("[AUTH] Password reset request completed (account not found - no action taken)");
-            return;
+            PasswordResetResponse response = new PasswordResetResponse();
+
+            response.setMessage(
+                    "account not found - no action taken" + " please create an account thank you !"
+            );
+
+            return ResponseEntity.ok(response);
         }
 
         User user = optionalUser.get();
@@ -65,8 +86,7 @@ public class PasswordResetService {
         // Store only the hash
         String tokenHash = hashToken(rawToken);
 
-        PasswordResetToken resetToken =
-                new PasswordResetToken(
+        PasswordResetToken resetToken = new PasswordResetToken(
                         tokenHash,
                         user,
                         LocalDateTime.now().plusMinutes(5)
@@ -86,7 +106,15 @@ public class PasswordResetService {
                     user.getEmail(),
                     resetLink
             );
+            PasswordResetResponse response = new PasswordResetResponse();
+
+            response.setMessage(
+                    "If an account exists for this email, " +
+                            "a password reset link has been sent."
+            );
             log.info("[AUTH] Password reset request completed successfully");
+
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("[AUTH] Failed to send password reset email after token was stored: {}", e.getMessage());
             // Token is already in database, but email failed
@@ -96,17 +124,13 @@ public class PasswordResetService {
     }
 
     @Transactional
-    public void resetPassword(
-            String rawToken,
-            String newPassword
-    ) {
+    public void resetPassword(String rawToken, String newPassword) {
 
         log.info("[AUTH] Password reset confirmation received");
 
         String tokenHash = hashToken(rawToken);
 
-        PasswordResetToken resetToken =
-                tokenRepository
+        PasswordResetToken resetToken = tokenRepository
                         .findByTokenHashAndUsedFalse(tokenHash)
                         .orElseThrow(() -> {
                             log.warn("[AUTH] Password reset failed - invalid or already used token");
@@ -116,8 +140,7 @@ public class PasswordResetService {
                         });
 
         // Check expiry
-        if (resetToken.getExpiresAt()
-                .isBefore(LocalDateTime.now())) {
+        if (resetToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             
             log.warn("[AUTH] Password reset failed - token expired");
             throw new IllegalArgumentException(
@@ -130,9 +153,8 @@ public class PasswordResetService {
         User user = resetToken.getUser();
 
         // Update password
-        user.setPassword(
-                passwordEncoder.encode(newPassword)
-        );
+        user.setPassword(passwordEncoder.encode(newPassword));
+
         log.debug("[AUTH] User password updated with BCrypt hash");
 
         // Make token single-use

@@ -23,11 +23,27 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             WebRequest request
     ) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        // Extract field errors for logging (without rejected values)
+        StringBuilder fieldsSummary = new StringBuilder();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            if (fieldsSummary.length() > 0) {
+                fieldsSummary.append(", ");
+            }
+            fieldsSummary.append(fieldName);
+        });
+        
+        // Concise validation log - NO rejected values logged
+        log.warn("[HTTP] Validation failed | path={} | fields=[{}]", 
+                path, fieldsSummary.toString());
+        
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", System.currentTimeMillis());
         errorDetails.put("status", 400);
         errorDetails.put("error", "Bad Request");
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+        errorDetails.put("path", path);
 
         Map<String, String> fieldErrors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
@@ -65,6 +81,27 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(envelope);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleIllegalStateException(
+            IllegalStateException ex,
+            WebRequest request
+    ) {
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", System.currentTimeMillis());
+        errorDetails.put("status", 409);
+        errorDetails.put("error", "Conflict");
+        errorDetails.put("message", ex.getMessage());
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+
+        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
+                errorDetails,
+                false,
+                ex.getMessage()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(envelope);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -135,6 +172,30 @@ public class GlobalExceptionHandler {
                 errorDetails,
                 false,
                 "An unexpected error occurred"
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
+    }
+    
+    @ExceptionHandler(com.unishare.redis.RedisOperationException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleRedisException(
+            com.unishare.redis.RedisOperationException ex,
+            WebRequest request
+    ) {
+        // Redis operation already logged by RedisService, just log the handler invocation
+        log.error("[ERROR] Redis operation failed - returning 500 to client");
+
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", System.currentTimeMillis());
+        errorDetails.put("status", 500);
+        errorDetails.put("error", "Internal Server Error");
+        errorDetails.put("message", "A temporary service issue occurred. Please try again.");
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+
+        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
+                errorDetails,
+                false,
+                "Service temporarily unavailable"
         );
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);

@@ -35,6 +35,7 @@ build/
 src/main/resources/application.yaml
 src/main/docs/
 src/main/notes/
+/docs/
 
 render.env
 

@@ -3,6 +3,7 @@ package com.unishare.controller.password;
 import com.unishare.dto.request.password.PasswordResetRequest;
 import com.unishare.dto.request.password.PasswordUpdateRequest;
 import com.unishare.dto.response.password.PasswordResetResponse;
+import com.unishare.idempotency.Idempotent;
 import com.unishare.service.usermanagement.PasswordResetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,42 +17,24 @@ public class UserPasswordController {
 
     private final PasswordResetService passwordResetService;
 
+    @Idempotent
     @PostMapping("/password-update")
-    public ResponseEntity<PasswordResetResponse> requestPasswordReset(
-            @Valid @RequestBody PasswordResetRequest request
-    ) {
+    public ResponseEntity<PasswordResetResponse> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
 
-        passwordResetService.requestPasswordReset(
-                request.getEmail()
-        );
-
-        PasswordResetResponse response =
-                new PasswordResetResponse();
-
-        response.setMessage(
-                "If an account exists for this email, " +
-                        "a password reset link has been sent."
-        );
-
-        return ResponseEntity.ok(response);
+        return passwordResetService.requestPasswordReset(request.getEmail());
     }
 
     @PostMapping("/password-update/confirm")
-    public ResponseEntity<PasswordResetResponse> updatePassword(
-            @Valid @RequestBody PasswordUpdateRequest request
-    ) {
+    public ResponseEntity<PasswordResetResponse> updatePassword(@Valid @RequestBody PasswordUpdateRequest request) {
 
         passwordResetService.resetPassword(
                 request.getToken(),
                 request.getNewPassword()
         );
 
-        PasswordResetResponse response =
-                new PasswordResetResponse();
+        PasswordResetResponse response = new PasswordResetResponse();
 
-        response.setMessage(
-                "Password has been updated successfully."
-        );
+        response.setMessage("Password has been updated successfully.");
 
         return ResponseEntity.ok(response);
     }

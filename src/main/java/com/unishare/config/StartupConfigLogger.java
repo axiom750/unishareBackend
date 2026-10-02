@@ -16,10 +16,10 @@ public class StartupConfigLogger {
     @Value("${server.port}")
     private String serverPort;
 
-    @Value("${DATABASE_URL:not-set}")
+    @Value("${spring.datasource.url}")
     private String databaseUrl;
 
-    @Value("${DATABASE_USERNAME:not-set}")
+    @Value("${spring.datasource.username}")
     private String databaseUsername;
 
     @Value("${frontend.url}")
@@ -84,7 +84,7 @@ public class StartupConfigLogger {
     }
 
     private String maskMiddle(String value) {
-        if (value == null || value.equals("not-set") || value.length() < 8) {
+        if (value == null || value.length() < 8) {
             return value;
         }
         int visibleChars = 4;
@@ -94,8 +94,8 @@ public class StartupConfigLogger {
     }
 
     private String maskSensitiveUrl(String url) {
-        if (url == null || url.equals("not-set")) {
-            return url;
+        if (url == null) {
+            return "not-set";
         }
         // Mask password in JDBC URL
         return url.replaceAll("password=[^&;]+", "password=****");

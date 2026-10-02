@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class EnvironmentValidator implements ApplicationListener<ApplicationEnvironmentPreparedEvent> {
@@ -17,52 +18,55 @@ public class EnvironmentValidator implements ApplicationListener<ApplicationEnvi
         Environment env = event.getEnvironment();
         
         log.info("========================================");
-        log.info("🔍 Validating Environment Variables");
+        log.info("🔍 Validating Spring Configuration Properties");
         log.info("========================================");
         
-        List<String> missingVars = new ArrayList<>();
-        List<String> requiredVars = List.of(
-            "SPRING_PROFILES_ACTIVE",
-            "DATABASE_URL",
-            "DATABASE_USERNAME",
-            "DATABASE_PASSWORD",
-            "JWT_SECRET",
-            "FRONTEND_URL",
-            "BACKEND_URL",
-            "GOOGLE_CLIENT_ID",
-            "GOOGLE_CLIENT_SECRET",
-            "GITHUB_CLIENT_ID",
-            "GITHUB_CLIENT_SECRET",
-            "CLOUDINARY_CLOUD_NAME",
-            "CLOUDINARY_API_KEY",
-            "CLOUDINARY_API_SECRET",
-            "BREVO_API_KEY",
-            "MAIL_FROM_EMAIL"
+        List<String> missingProps = new ArrayList<>();
+        
+        // Map of property name -> Spring property path
+        Map<String, String> requiredProperties = Map.ofEntries(
+            Map.entry("spring.datasource.url", "Database URL"),
+            Map.entry("spring.datasource.username", "Database Username"),
+            Map.entry("spring.datasource.password", "Database Password"),
+            Map.entry("jwt.secret", "JWT Secret"),
+            Map.entry("frontend.url", "Frontend URL"),
+            Map.entry("google.clientId", "Google Client ID"),
+            Map.entry("google.clientSecret", "Google Client Secret"),
+            Map.entry("github.clientId", "GitHub Client ID"),
+            Map.entry("github.clientSecret", "GitHub Client Secret"),
+            Map.entry("cloudinary.cloud-name", "Cloudinary Cloud Name"),
+            Map.entry("cloudinary.api-key", "Cloudinary API Key"),
+            Map.entry("cloudinary.api-secret", "Cloudinary API Secret"),
+            Map.entry("brevo.api-key", "Brevo API Key"),
+            Map.entry("mail.from-email", "Mail From Email")
         );
         
-        log.info("📋 Checking {} required environment variables...", requiredVars.size());
+        log.info("📋 Checking {} required configuration properties...", requiredProperties.size());
         
-        for (String var : requiredVars) {
-            String value = env.getProperty(var);
+        for (Map.Entry<String, String> entry : requiredProperties.entrySet()) {
+            String propKey = entry.getKey();
+            String displayName = entry.getValue();
+            String value = env.getProperty(propKey);
+            
             if (value == null || value.trim().isEmpty()) {
-                missingVars.add(var);
-                log.error("  ❌ Missing: {}", var);
+                missingProps.add(displayName + " (" + propKey + ")");
+                log.warn("  ⚠️  Missing or empty: {}", displayName);
             } else {
-                log.info("  ✅ Found: {}", var);
+                log.info("  ✅ Found: {}", displayName);
             }
         }
         
-        if (!missingVars.isEmpty()) {
-            log.error("========================================");
-            log.error("❌ Missing {} required environment variable(s):", missingVars.size());
-            missingVars.forEach(var -> log.error("  - {}", var));
-            log.error("========================================");
-            log.error("⚠️  Application may fail to start!");
-            log.error("⚠️  Please set all required environment variables");
-            log.error("========================================");
+        if (!missingProps.isEmpty()) {
+            log.warn("========================================");
+            log.warn("⚠️  {} configuration property(ies) missing or empty:", missingProps.size());
+            missingProps.forEach(prop -> log.warn("  - {}", prop));
+            log.warn("========================================");
+            log.warn("⚠️  Application may fail at runtime if these are required");
+            log.warn("⚠️  Set properties in application.yaml or via environment variables");
+            log.warn("========================================");
         } else {
             log.info("========================================");
-            log.info("✅ All required environment variables are set!");
+            log.info("✅ All required configuration properties are set!");
             log.info("========================================");
         }
     }

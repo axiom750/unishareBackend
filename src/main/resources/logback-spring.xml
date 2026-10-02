@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    
+    <!-- Include Spring Boot's default configuration -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    
+    <!-- Console Appender with pattern including MDC traceId -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>[UniShare] [traceId=%X{traceId}] %d{yyyy-MM-dd HH:mm:ss.SSS} ${LOG_LEVEL_PATTERN:-%5p} ${PID:- } --- [%-40.40logger{39}] : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- Suppress verbose Spring exception logging -->
+    <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="ERROR"/>
+    
+    <!-- Suppress verbose Spring validation logging -->
+    <logger name="org.springframework.web.servlet.handler.AbstractHandlerExceptionResolver" level="ERROR"/>
+    
+    <!-- Application logging levels -->
+    <logger name="com.unishare" level="INFO"/>
+    
+    <!-- Redis operations logging at DEBUG level (with detailed operation logs) -->
+    <logger name="com.unishare.redis" level="DEBUG"/>
+    
+    <!-- Root logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+    
+</configuration>

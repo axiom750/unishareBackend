@@ -120,6 +120,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!--        Redis Dependencies-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
 	</dependencies>
 
 	<build>
