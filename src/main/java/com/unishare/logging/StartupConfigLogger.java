@@ -27,6 +27,10 @@ import org.springframework.stereotype.Component;
 public class StartupConfigLogger {
 
     private final RedisConnectionFactory redisConnectionFactory;
+    
+    // Track Redis connectivity test result
+    private boolean redisConnected = false;
+    private String redisConnectionError = null;
 
     // Environment & Server
     @Value("${spring.profiles.active:default}")
@@ -199,25 +203,35 @@ public class StartupConfigLogger {
             
             long duration = (System.nanoTime() - startTime) / 1_000_000;
             
+            // Success - store result
+            redisConnected = true;
+            redisConnectionError = null;
+            
             log.info("Status      : CONNECTED");
             log.info("Ping        : {}", pingResponse != null ? pingResponse : "PONG");
-            log.info("Duration    : {} ms", duration);
+            log.info("Duration    : {} ms", String.format("%,d", duration));
             log.info("============================================================");
             
         } catch (Exception e) {
             long duration = (System.nanoTime() - startTime) / 1_000_000;
             
+            // Failure - store result
+            redisConnected = false;
+            redisConnectionError = extractRootCauseMessage(e);
+            
             String errorType = classifyRedisError(e);
-            String errorMessage = sanitizeErrorMessage(e);
+            String errorMessage = extractMeaningfulError(e);
+            String rootCauseClass = extractRootCauseClass(e);
             
             log.error("Status      : FAILED");
-            log.error("Duration    : {} ms", duration);
+            log.error("Duration    : {} ms", String.format("%,d", duration));
             log.error("Error Type  : {}", errorType);
             log.error("Error       : {}", errorMessage);
+            log.error("Root Cause  : {}", rootCauseClass);
             log.error("============================================================");
             
-            // Log full exception for debugging (but still don't expose secrets)
-            log.error("[REDIS] Connection test failed", e);
+            // Log full exception at DEBUG level for troubleshooting
+            log.debug("[REDIS] Full connection test exception:", e);
             
         } finally {
             // Clean up connection
@@ -232,32 +246,143 @@ public class StartupConfigLogger {
     }
 
     /**
-     * Classify Redis connection errors
+     * Extract the most meaningful error message from exception chain
+     */
+    private String extractMeaningfulError(Exception e) {
+        if (e == null) {
+            return "Unknown error";
+        }
+        
+        // Walk the cause chain to find the most specific message
+        Throwable current = e;
+        String bestMessage = null;
+        
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isEmpty()) {
+                // Prefer messages that contain useful info
+                if (message.contains("timed out") || 
+                    message.contains("refused") || 
+                    message.contains("unknown host") ||
+                    message.contains("authentication") ||
+                    message.contains("SSL") ||
+                    message.contains("NOAUTH")) {
+                    bestMessage = message;
+                }
+                // Keep first non-empty message as fallback
+                if (bestMessage == null) {
+                    bestMessage = message;
+                }
+            }
+            current = current.getCause();
+        }
+        
+        if (bestMessage == null) {
+            bestMessage = e.getClass().getSimpleName();
+        }
+        
+        // Sanitize and limit length
+        bestMessage = sanitizeErrorMessage(bestMessage);
+        
+        return bestMessage;
+    }
+
+    /**
+     * Extract root cause class name
+     */
+    private String extractRootCauseClass(Exception e) {
+        if (e == null) {
+            return "Unknown";
+        }
+        
+        Throwable current = e;
+        Throwable root = e;
+        
+        while (current != null) {
+            root = current;
+            current = current.getCause();
+        }
+        
+        return root.getClass().getSimpleName();
+    }
+
+    /**
+     * Extract root cause message for storage
+     */
+    private String extractRootCauseMessage(Exception e) {
+        if (e == null) {
+            return "Unknown error";
+        }
+        
+        Throwable current = e;
+        Throwable root = e;
+        
+        while (current != null) {
+            root = current;
+            current = current.getCause();
+        }
+        
+        String message = root.getMessage();
+        if (message == null || message.isEmpty()) {
+            message = root.getClass().getSimpleName();
+        }
+        
+        return sanitizeErrorMessage(message);
+    }
+
+    /**
+     * Classify Redis connection errors by inspecting the entire cause chain
      */
     private String classifyRedisError(Exception e) {
-        String message = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (e == null) {
+            return "UNKNOWN";
+        }
+        
+        // Check entire exception chain
+        Throwable current = e;
+        while (current != null) {
+            String className = current.getClass().getName().toLowerCase();
+            String message = current.getMessage() != null ? current.getMessage().toLowerCase() : "";
+            
+            // Check for specific exception types and messages
+            if (className.contains("rediscommandtimeoutexception") || 
+                message.contains("command timed out") ||
+                message.contains("connection initialization timed out")) {
+                return "CONNECTION_TIMEOUT";
+            }
+            
+            if (message.contains("connection refused") || className.contains("connectexception")) {
+                return "CONNECTION_REFUSED";
+            }
+            
+            if (message.contains("unknown host") || 
+                message.contains("name or service not known") ||
+                className.contains("unknownhostexception")) {
+                return "DNS_RESOLUTION_FAILURE";
+            }
+            
+            if (className.contains("sslexception") || 
+                className.contains("sslhandshakeexception") ||
+                message.contains("ssl handshake")) {
+                return "SSL_HANDSHAKE_FAILURE";
+            }
+            
+            if (message.contains("noauth") || 
+                message.contains("authentication") || 
+                message.contains("auth failed") ||
+                message.contains("invalid password")) {
+                return "AUTHENTICATION_FAILURE";
+            }
+            
+            if (message.contains("timeout") || message.contains("timed out")) {
+                return "CONNECTION_TIMEOUT";
+            }
+            
+            current = current.getCause();
+        }
+        
+        // Check top-level class name
         String className = e.getClass().getSimpleName();
-        
-        if (message.contains("timeout") || message.contains("timed out")) {
-            return "CONNECTION_TIMEOUT";
-        }
-        
-        if (message.contains("refused") || message.contains("connection refused")) {
-            return "CONNECTION_REFUSED";
-        }
-        
-        if (message.contains("unknown host") || message.contains("name or service not known")) {
-            return "DNS_RESOLUTION_FAILURE";
-        }
-        
-        if (message.contains("ssl") || message.contains("handshake")) {
-            return "SSL_HANDSHAKE_FAILURE";
-        }
-        
-        if (message.contains("auth") || message.contains("authentication") || message.contains("noauth")) {
-            return "AUTHENTICATION_FAILURE";
-        }
-        
         if (className.contains("Connection")) {
             return "CONNECTION_FAILURE";
         }
@@ -268,12 +393,10 @@ public class StartupConfigLogger {
     /**
      * Sanitize error message for logging (remove any potential secrets)
      */
-    private String sanitizeErrorMessage(Exception e) {
-        if (e == null) {
+    private String sanitizeErrorMessage(String message) {
+        if (message == null || message.isEmpty()) {
             return "Unknown error";
         }
-        
-        String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
         
         // Remove any potential password/token from error message
         message = message.replaceAll("password=[^\\s&]+", "password=***");
@@ -345,8 +468,7 @@ public class StartupConfigLogger {
         allConfigured &= logComponentStatus("Database        ", databaseUrl, databaseUsername, databasePassword);
         allConfigured &= logComponentStatus("Redis Config    ", redisHost, redisPassword);
         
-        // Test Redis connectivity separately
-        boolean redisConnected = testRedisConnection();
+        // Use stored Redis connectivity test result
         log.info("  Redis Connection: {}", redisConnected ? "CONNECTED" : "FAILED");
         allConfigured &= redisConnected;
         
@@ -360,28 +482,32 @@ public class StartupConfigLogger {
 
         log.info("============================================================");
         
+        // Overall status
+        String overallStatus;
         if (allConfigured) {
+            overallStatus = "HEALTHY";
+            log.info("Overall Status  : {}", overallStatus);
             log.info("✅ All configurations loaded and services connected!");
         } else {
-            log.error("❌ Configuration validation failed - check [MISSING]/FAILED entries above");
+            // Determine if degraded or critical
+            boolean criticalFailure = !isConfigured(databaseUrl) || !isConfigured(databasePassword);
+            overallStatus = criticalFailure ? "CRITICAL" : "DEGRADED";
+            
+            log.error("Overall Status  : {}", overallStatus);
+            log.error("❌ Configuration validation failed - check FAILED/[MISSING] entries above");
+            
+            if (!redisConnected && redisConnectionError != null) {
+                log.error("❌ Redis Connection Failed: {}", redisConnectionError);
+            }
         }
     }
 
     /**
-     * Quick Redis connection test for status summary
+     * Quick Redis connection test for status summary (reuses stored result)
      */
     private boolean testRedisConnection() {
-        try {
-            RedisConnection connection = redisConnectionFactory.getConnection();
-            try {
-                connection.ping();
-                return true;
-            } finally {
-                connection.close();
-            }
-        } catch (Exception e) {
-            return false;
-        }
+        // Return the stored result from the detailed test
+        return redisConnected;
     }
 
     /**
