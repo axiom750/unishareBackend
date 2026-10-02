@@ -1,15 +1,19 @@
 package com.unishare.logging;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.stereotype.Component;
 
 /**
  * Startup Configuration Logger
  * 
  * Validates and logs application configuration at startup for production debugging.
+ * Includes real Redis connectivity test to verify Redis is actually reachable.
  * 
  * SECURITY:
  * - Never logs actual secret values (passwords, API keys, tokens)
@@ -19,7 +23,10 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class StartupConfigLogger {
+
+    private final RedisConnectionFactory redisConnectionFactory;
 
     // Environment & Server
     @Value("${spring.profiles.active:default}")
@@ -63,6 +70,9 @@ public class StartupConfigLogger {
 
     @Value("${spring.data.redis.ssl.enabled:false}")
     private String redisSsl;
+    
+    @Value("${spring.data.redis.timeout:2000ms}")
+    private String redisTimeout;
 
     // Google OAuth
     @Value("${google.clientId}")
@@ -123,7 +133,7 @@ public class StartupConfigLogger {
         
         logEnvironment();
         logDatabase();
-        logRedis();
+        logRedisConfigAndTest();
         logFrontendBackend();
         logGoogleOAuth();
         logGitHubOAuth();
@@ -152,13 +162,130 @@ public class StartupConfigLogger {
         log.info("  Password: {}", configuredStatus(databasePassword));
     }
 
-    private void logRedis() {
-        log.info("Redis:");
-        log.info("  Host: {}", redisHost);
-        log.info("  Port: {}", redisPort);
-        log.info("  Username: {}", redisUsername);
-        log.info("  SSL: {}", redisSsl);
-        log.info("  Password: {}", configuredStatus(redisPassword));
+    /**
+     * Redis configuration and connectivity test
+     */
+    private void logRedisConfigAndTest() {
+        log.info("============================================================");
+        log.info("REDIS CONFIGURATION");
+        log.info("============================================================");
+        log.info("Host        : {}", redisHost);
+        log.info("Port        : {}", redisPort);
+        log.info("Username    : {}", redisUsername);
+        log.info("SSL         : {}", redisSsl);
+        log.info("Timeout     : {}", redisTimeout);
+        log.info("Password    : {}", configuredStatus(redisPassword));
+        
+        // Perform actual connectivity test
+        testRedisConnectivity();
+    }
+
+    /**
+     * Test actual Redis connectivity with PING command
+     */
+    private void testRedisConnectivity() {
+        log.info("============================================================");
+        log.info("REDIS CONNECTIVITY TEST");
+        log.info("============================================================");
+        
+        long startTime = System.nanoTime();
+        RedisConnection connection = null;
+        
+        try {
+            connection = redisConnectionFactory.getConnection();
+            
+            // Execute PING command
+            String pingResponse = connection.ping();
+            
+            long duration = (System.nanoTime() - startTime) / 1_000_000;
+            
+            log.info("Status      : CONNECTED");
+            log.info("Ping        : {}", pingResponse != null ? pingResponse : "PONG");
+            log.info("Duration    : {} ms", duration);
+            log.info("============================================================");
+            
+        } catch (Exception e) {
+            long duration = (System.nanoTime() - startTime) / 1_000_000;
+            
+            String errorType = classifyRedisError(e);
+            String errorMessage = sanitizeErrorMessage(e);
+            
+            log.error("Status      : FAILED");
+            log.error("Duration    : {} ms", duration);
+            log.error("Error Type  : {}", errorType);
+            log.error("Error       : {}", errorMessage);
+            log.error("============================================================");
+            
+            // Log full exception for debugging (but still don't expose secrets)
+            log.error("[REDIS] Connection test failed", e);
+            
+        } finally {
+            // Clean up connection
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (Exception e) {
+                    log.warn("[REDIS] Error closing test connection: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * Classify Redis connection errors
+     */
+    private String classifyRedisError(Exception e) {
+        String message = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        String className = e.getClass().getSimpleName();
+        
+        if (message.contains("timeout") || message.contains("timed out")) {
+            return "CONNECTION_TIMEOUT";
+        }
+        
+        if (message.contains("refused") || message.contains("connection refused")) {
+            return "CONNECTION_REFUSED";
+        }
+        
+        if (message.contains("unknown host") || message.contains("name or service not known")) {
+            return "DNS_RESOLUTION_FAILURE";
+        }
+        
+        if (message.contains("ssl") || message.contains("handshake")) {
+            return "SSL_HANDSHAKE_FAILURE";
+        }
+        
+        if (message.contains("auth") || message.contains("authentication") || message.contains("noauth")) {
+            return "AUTHENTICATION_FAILURE";
+        }
+        
+        if (className.contains("Connection")) {
+            return "CONNECTION_FAILURE";
+        }
+        
+        return "UNKNOWN";
+    }
+
+    /**
+     * Sanitize error message for logging (remove any potential secrets)
+     */
+    private String sanitizeErrorMessage(Exception e) {
+        if (e == null) {
+            return "Unknown error";
+        }
+        
+        String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        
+        // Remove any potential password/token from error message
+        message = message.replaceAll("password=[^\\s&]+", "password=***");
+        message = message.replaceAll("token=[^\\s&]+", "token=***");
+        message = message.replaceAll("auth=[^\\s&]+", "auth=***");
+        
+        // Limit message length
+        if (message.length() > 200) {
+            message = message.substring(0, 197) + "...";
+        }
+        
+        return message;
     }
 
     private void logFrontendBackend() {
@@ -209,25 +336,51 @@ public class StartupConfigLogger {
 
     private void logConfigurationStatus() {
         boolean allConfigured = true;
-        StringBuilder missingConfigs = new StringBuilder();
 
-        log.info("Configuration Status:");
+        log.info("============================================================");
+        log.info("STARTUP CONFIGURATION STATUS");
+        log.info("============================================================");
 
         // Check each required configuration
-        allConfigured &= logComponentStatus("Database", databaseUrl, databaseUsername, databasePassword);
-        allConfigured &= logComponentStatus("Redis", redisHost, redisPassword);
-        allConfigured &= logComponentStatus("Google OAuth", googleClientId, googleClientSecret);
-        allConfigured &= logComponentStatus("GitHub OAuth", githubClientId, githubClientSecret);
-        allConfigured &= logComponentStatus("JWT", jwtSecret);
-        allConfigured &= logComponentStatus("Brevo", brevoApiKey);
-        allConfigured &= logComponentStatus("Cloudinary", cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret);
-        allConfigured &= logComponentStatus("Frontend URL", frontendUrl);
-        allConfigured &= logComponentStatus("Backend URL", backendUrl);
+        allConfigured &= logComponentStatus("Database        ", databaseUrl, databaseUsername, databasePassword);
+        allConfigured &= logComponentStatus("Redis Config    ", redisHost, redisPassword);
+        
+        // Test Redis connectivity separately
+        boolean redisConnected = testRedisConnection();
+        log.info("  Redis Connection: {}", redisConnected ? "CONNECTED" : "FAILED");
+        allConfigured &= redisConnected;
+        
+        allConfigured &= logComponentStatus("Google OAuth    ", googleClientId, googleClientSecret);
+        allConfigured &= logComponentStatus("GitHub OAuth    ", githubClientId, githubClientSecret);
+        allConfigured &= logComponentStatus("JWT             ", jwtSecret);
+        allConfigured &= logComponentStatus("Brevo           ", brevoApiKey);
+        allConfigured &= logComponentStatus("Cloudinary      ", cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret);
+        allConfigured &= logComponentStatus("Frontend URL    ", frontendUrl);
+        allConfigured &= logComponentStatus("Backend URL     ", backendUrl);
 
+        log.info("============================================================");
+        
         if (allConfigured) {
-            log.info("✅ All configurations loaded successfully!");
+            log.info("✅ All configurations loaded and services connected!");
         } else {
-            log.error("❌ Configuration validation failed - check [MISSING] entries above");
+            log.error("❌ Configuration validation failed - check [MISSING]/FAILED entries above");
+        }
+    }
+
+    /**
+     * Quick Redis connection test for status summary
+     */
+    private boolean testRedisConnection() {
+        try {
+            RedisConnection connection = redisConnectionFactory.getConnection();
+            try {
+                connection.ping();
+                return true;
+            } finally {
+                connection.close();
+            }
+        } catch (Exception e) {
+            return false;
         }
     }
 
