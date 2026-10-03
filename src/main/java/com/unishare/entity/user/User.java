@@ -1,7 +1,7 @@
 package com.unishare.entity.user;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.unishare.entity.auth.Role;
+import com.unishare.entity.rbac.Role;
 import com.unishare.enums.auth.AuthProvider;
 import jakarta.persistence.*;
 import lombok.*;
@@ -23,10 +23,15 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
+    /**
+     * Provider-specific immutable identifiers.
+     *
+     * These are the primary OAuth identities.
+     */
+    @Column(name = "google_id", unique = true)
     private String googleId;
 
-    @Column(unique = true)
+    @Column(name = "github_id", unique = true)
     private String githubId;
 
     @Column(unique = true, nullable = false, length = 50)
@@ -44,6 +49,11 @@ public class User {
     @Builder.Default
     private AuthProvider authProvider = AuthProvider.UNISHARE;
 
+    /**
+     * User <-> Role
+     *
+     * Users can have multiple roles.
+     */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "user_roles",

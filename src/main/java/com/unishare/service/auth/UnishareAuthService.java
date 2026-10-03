@@ -7,6 +7,7 @@ import com.unishare.dto.response.auth.AuthResponseDTO;
 import com.unishare.dto.response.user.UserDTO;
 import com.unishare.entity.user.User;
 import com.unishare.enums.auth.AuthProvider;
+import com.unishare.service.rbac.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

@@ -2,10 +2,9 @@ package com.unishare.service.user;
 
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
-import com.unishare.enums.auth.AuthProvider;
 import com.unishare.repository.user.UserProfileRepository;
 import com.unishare.repository.user.UserRepository;
-import com.unishare.service.auth.RoleService;
+import com.unishare.service.rbac.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,7 +25,14 @@ public class UserService {
     private final RoleService roleService;
 
     public Optional<User> findByEmail(String email) {
-        return userRepository.findByEmail(email);
+
+        if (email == null) {
+            return Optional.empty();
+        }
+
+        return userRepository.findByEmail(
+                email.trim().toLowerCase()
+        );
     }
 
     public Optional<User> findById(Long id) {
@@ -41,22 +47,92 @@ public class UserService {
         return userRepository.findByGithubId(githubId);
     }
 
+    /**
+     * Generates a unique UniShare username from an OAuth provider
+     * username.
+     */
+    public String generateUniqueUsername(
+            String baseUsername
+    ) {
 
+        String base =
+                baseUsername == null
+                        ? "user"
+                        : baseUsername
+                        .trim()
+                        .replaceAll(
+                                "[^a-zA-Z0-9_]",
+                                "_"
+                        );
+
+        if (base.isBlank()) {
+            base = "user";
+        }
+
+        /*
+         * users.username has max length 50.
+         */
+        if (base.length() > 40) {
+            base = base.substring(0, 40);
+        }
+
+        String candidate = base;
+
+        int counter = 1;
+
+        while (
+                userRepository.existsByUsername(candidate)
+        ) {
+
+            String suffix =
+                    "_" + counter;
+
+            int maxBaseLength =
+                    50 - suffix.length();
+
+            String shortenedBase =
+                    base.length() > maxBaseLength
+                            ? base.substring(
+                            0,
+                            maxBaseLength
+                    )
+                            : base;
+
+            candidate =
+                    shortenedBase + suffix;
+
+            counter++;
+        }
+
+        return candidate;
+    }
+
+    /**
+     * Existing Google OAuth flow.
+     *
+     * New users obtain their roles from RoleService.
+     * RoleService must resolve annotation-declared roles.
+     */
     @Transactional
     public User processGoogleUser(
             String username,
             String email,
             String googleId,
-            String profilePictureUrl) {
+            String profilePictureUrl
+    ) {
 
-        log.info("[OAUTH] Processing Google OAuth user - Google ID: {}, email domain: {}", 
-                googleId, getEmailDomain(email));
+        email =
+                email.trim().toLowerCase();
 
-        Optional<User> existingUser = userRepository.findByGoogleId(googleId);
+        Optional<User> existingUser =
+                userRepository.findByGoogleId(
+                        googleId
+                );
 
         if (existingUser.isPresent()) {
-            log.debug("[OAUTH] Existing Google user found - ID: {}", existingUser.get().getId());
-            User user = existingUser.get();
+
+            User user =
+                    existingUser.get();
 
             ensureProfileExists(
                     user,
@@ -66,19 +142,28 @@ public class UserService {
             return user;
         }
 
-        existingUser = userRepository.findByEmail(email);
+        existingUser =
+                userRepository.findByEmail(email);
 
         if (existingUser.isPresent()) {
-            log.info("[OAUTH] Linking Google account to existing user - ID: {}", existingUser.get().getId());
-            User user = existingUser.get();
 
-            // Link Google account to existing user
+            User user =
+                    existingUser.get();
+
+            if (user.getGoogleId() != null
+                    && !user.getGoogleId().equals(googleId)) {
+
+                throw new IllegalStateException(
+                        "User account is already linked to another Google account"
+                );
+            }
+
             if (user.getGoogleId() == null) {
 
                 user.setGoogleId(googleId);
 
-                user = userRepository.save(user);
-                log.debug("[OAUTH] Google account linked successfully");
+                user =
+                        userRepository.save(user);
             }
 
             ensureProfileExists(
@@ -89,44 +174,46 @@ public class UserService {
             return user;
         }
 
-        log.info("[OAUTH] Creating new user from Google OAuth - email domain: {}", getEmailDomain(email));
-        
-        User newUser = User.builder()
-                .email(email)
-                .username(username)
-                .googleId(googleId)
-                .authProvider(AuthProvider.GOOGLE)
-                .roles(roleService.getDefaultUserRoles()) // Use RoleService instead of enum
-                .active(true)
-                .password(
-                        passwordEncoder.encode(
-                                UUID.randomUUID().toString()
+        User newUser =
+                User.builder()
+                        .email(email)
+                        .username(
+                                generateUniqueUsername(
+                                        username
+                                )
                         )
-                )
-                .build();
-
-
-        User savedUser = userRepository.save(newUser);
-        log.info("[OAUTH] New Google user created - ID: {} with default USER role", savedUser.getId());
-
-        UserProfile profile = UserProfile.builder()
-                        .user(savedUser)
-                        .profilePictureUrl(profilePictureUrl)
+                        .googleId(googleId)
+                        .authProvider(
+                                com.unishare.enums.auth.AuthProvider.GOOGLE
+                        )
+                        .roles(
+                                roleService
+                                        .getDefaultUserRoles()
+                        )
+                        .active(true)
+                        .password(
+                                passwordEncoder.encode(
+                                        UUID.randomUUID()
+                                                .toString()
+                                )
+                        )
                         .build();
 
+        User savedUser =
+                userRepository.save(newUser);
 
-        userProfileRepository.save(profile);
-        log.debug("[OAUTH] User profile created for user ID: {}", savedUser.getId());
-
+        ensureProfileExists(
+                savedUser,
+                profilePictureUrl
+        );
 
         return savedUser;
     }
 
     private void ensureProfileExists(
             User user,
-            String profilePictureUrl) {
-
-        log.debug("[USER] Ensuring profile exists for user ID: {}", user.getId());
+            String profilePictureUrl
+    ) {
 
         Optional<UserProfile> existingProfile =
                 userProfileRepository.findByUser(user);
@@ -144,38 +231,24 @@ public class UserService {
                 );
 
                 userProfileRepository.save(profile);
-                log.debug("[USER] Profile picture updated for user ID: {}", user.getId());
             }
 
             return;
         }
 
-
-        // Profile doesn't exist → create it
-        log.debug("[USER] Creating new profile for user ID: {}", user.getId());
-
         UserProfile profile =
                 UserProfile.builder()
                         .user(user)
-                        .profilePictureUrl(profilePictureUrl)
+                        .profilePictureUrl(
+                                profilePictureUrl
+                        )
                         .build();
 
         userProfileRepository.save(profile);
-        log.debug("[USER] Profile created successfully for user ID: {}", user.getId());
     }
 
     public User save(User user) {
-        log.debug("[USER] Saving user - ID: {}", user.getId() != null ? user.getId() : "new user");
+
         return userRepository.save(user);
-    }
-    
-    /**
-     * Extract email domain for logging (never log full email for privacy)
-     */
-    private String getEmailDomain(String email) {
-        if (email == null || !email.contains("@")) {
-            return "unknown";
-        }
-        return email.substring(email.indexOf("@"));
     }
 }

@@ -1,4 +1,4 @@
-package com.unishare.enums.auth;
+package com.unishare.enums.rbac;
 
 public enum PermissionStatus {
 

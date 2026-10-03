@@ -1,5 +1,7 @@
 package com.unishare.utils.scanner;
 
+import com.unishare.enums.rbac.PermissionDomain;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -12,7 +14,8 @@ public record PermissionDefinition(
         String displayName,
         String description,
         String baseEntity,
-        List<String> reachableEntities
+        List<String> reachableEntities,
+        PermissionDomain domain
 ) {
     /**
      * Compact constructor with validation.
@@ -23,6 +26,9 @@ public record PermissionDefinition(
         }
         if (displayName == null || displayName.isBlank()) {
             throw new IllegalArgumentException("Permission displayName cannot be blank");
+        }
+        if (domain == null) {
+            throw new IllegalArgumentException("Permission domain cannot be null");
         }
         if (baseEntity == null || baseEntity.isBlank()) {
             throw new IllegalArgumentException("Permission baseEntity cannot be blank");

@@ -53,7 +53,7 @@ public class PermissionScanner {
                 );
 
         log.info(
-                "[SECURITY] Permission scan completed | discovered={}",
+                "[SECURITY] Permission scanning completed | discovered={}",
                 discovered.size()
         );
 
@@ -133,7 +133,8 @@ public class PermissionScanner {
                 permission.displayName().trim(),
                 permission.description().trim(),
                 baseEntity,
-                reachableEntities
+                reachableEntities,
+                permission.domain()
         );
     }
 
