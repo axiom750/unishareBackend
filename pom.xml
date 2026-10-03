@@ -28,6 +28,9 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Default profile for `mvn spring-boot:run` (dev). Override with -Dspring-boot.run.profiles=prod.
+		     Deployments run the jar with SPRING_PROFILES_ACTIVE and are not affected. -->
+		<spring-boot.run.profiles>local</spring-boot.run.profiles>
 	</properties>
 	<dependencies>
 
