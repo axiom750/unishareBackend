@@ -1,5 +1,7 @@
 package com.unishare.annotation;
 
+import com.unishare.enums.rbac.PermissionDomain;
+
 import java.lang.annotation.*;
 
 @Target(ElementType.METHOD)
@@ -30,4 +32,10 @@ public @interface Permission {
      * Additional JPA entities reachable by this permission.
      */
     Class<?>[] reachableEntities() default {};
+
+    /**
+     * Authorization domain. APPLICATION permissions are granted to normal roles;
+     * CONTROL_PLANE permissions are granted automatically to the declared GodRole.
+     */
+    PermissionDomain domain() default PermissionDomain.APPLICATION;
 }

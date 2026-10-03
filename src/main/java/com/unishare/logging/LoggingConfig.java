@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class LoggingConfig {
     
-    // Logging configuration is primarily handled by application.yaml/logback-spring.xml
+    // Logging configuration is primarily handled by application-{local,prod}.yaml/logback-spring.xml
     // This class exists for future logging-related bean definitions if needed
     
     // Note: Request logging is handled by RequestLoggingFilter.java (standalone component)

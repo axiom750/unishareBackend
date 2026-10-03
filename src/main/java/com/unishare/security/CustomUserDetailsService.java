@@ -1,6 +1,6 @@
 package com.unishare.security;
 
-import com.unishare.entity.auth.Role;
+import com.unishare.entity.rbac.Role;
 import com.unishare.entity.user.User;
 import com.unishare.service.user.UserService;
 import lombok.RequiredArgsConstructor;

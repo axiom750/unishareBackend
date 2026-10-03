@@ -62,7 +62,7 @@ public class EnvironmentValidator implements ApplicationListener<ApplicationEnvi
             missingProps.forEach(prop -> log.warn("  - {}", prop));
             log.warn("========================================");
             log.warn("⚠️  Application may fail at runtime if these are required");
-            log.warn("⚠️  Set properties in application.yaml or via environment variables");
+            log.warn("⚠️  Set properties in application-local.yaml (dev) / application-prod.yaml (deploy) or via environment variables");
             log.warn("========================================");
         } else {
             log.info("========================================");

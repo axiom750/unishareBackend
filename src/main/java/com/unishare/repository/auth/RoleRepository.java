@@ -1,6 +1,6 @@
 package com.unishare.repository.auth;
 
-import com.unishare.entity.auth.Role;
+import com.unishare.entity.rbac.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

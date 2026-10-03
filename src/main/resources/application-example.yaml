@@ -59,3 +59,25 @@ cloudinary:
   cloud-name: your-cloudinary-cloud-name
   api-key: your-cloudinary-api-key
   api-secret: your-cloudinary-api-secret
+
+unishare:
+  security:
+    scanning:
+      enabled: true
+      god-account: true
+      god-role: true
+      roles: true
+      permissions: true
+
+    seeding:
+      enabled: true
+      god-account: true
+      god-role: true
+      roles: true
+      permissions: true
+      god-account-role: true
+
+    # GodAccount initial password: read from the environment, used only when the
+    # GodAccount is first created. Never put a literal password here.
+    god-account:
+      initial-password: ${GOD_ACCOUNT_INITIAL_PASSWORD:}

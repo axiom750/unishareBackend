@@ -1,7 +1,7 @@
 package com.unishare.dto.response.user;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.unishare.entity.auth.Role;
+import com.unishare.entity.rbac.Role;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.enums.auth.AuthProvider;

@@ -1,6 +1,7 @@
-package com.unishare.entity.auth;
+package com.unishare.entity.rbac;
 
-import com.unishare.enums.auth.PermissionStatus;
+import com.unishare.enums.rbac.PermissionDomain;
+import com.unishare.enums.rbac.PermissionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -41,6 +42,11 @@ public class Permission {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private PermissionStatus status = PermissionStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private PermissionDomain domain = PermissionDomain.APPLICATION;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
