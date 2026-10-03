@@ -38,19 +38,25 @@ class PermissionSynchronizerTest {
 
     @InjectMocks private PermissionSynchronizer synchronizer;
 
-    private static PermissionDefinition definition(UUID id, String name, List<String> reachable) {
-        return definition(id, name, reachable, PermissionDomain.APPLICATION);
+    /** Test-only stand-in for the @PreAuthorize authority: "Create Ride" -> "CREATE_RIDE". */
+    private static String authority(String displayName) {
+        return displayName.toUpperCase(Locale.ROOT).replace(' ', '_');
     }
 
-    private static PermissionDefinition definition(UUID id, String name, List<String> reachable, PermissionDomain domain) {
-        return new PermissionDefinition(id, name, name + " description", "rides", reachable, domain);
+    private static PermissionDefinition definition(UUID id, String displayName, List<String> reachable) {
+        return definition(id, displayName, reachable, PermissionDomain.APPLICATION);
     }
 
-    private static Permission stored(UUID id, String name, PermissionStatus status) {
+    private static PermissionDefinition definition(UUID id, String displayName, List<String> reachable, PermissionDomain domain) {
+        return new PermissionDefinition(id, authority(displayName), displayName, displayName + " description",
+                "rides", reachable, domain);
+    }
+
+    private static Permission stored(UUID id, String displayName, PermissionStatus status) {
         LocalDateTime then = LocalDateTime.now().minusDays(1);
         Permission permission = Permission.builder()
-                .id(id).displayName(name).description(name + " description").baseEntity("rides")
-                .status(status).createdAt(then).updatedAt(then).build();
+                .id(id).name(authority(displayName)).displayName(displayName).description(displayName + " description")
+                .baseEntity("rides").status(status).createdAt(then).updatedAt(then).build();
         permission.setReachableEntitiesFromCollection(List.of());
         return permission;
     }
@@ -165,6 +171,113 @@ class PermissionSynchronizerTest {
         assertEquals(PermissionDomain.CONTROL_PLANE, existing.getDomain());
         assertNotEquals(updatedAt, existing.getUpdatedAt());
         assertEquals(PERMISSION_ID, existing.getId());
+    }
+
+    // ---------------------------------------------------------------- Permission.name
+
+    @Test
+    @DisplayName("7. PermissionDefinition.name is persisted as Permission.name")
+    void namePersisted() {
+
+        when(permissionRepository.findAll()).thenReturn(List.of());
+
+        synchronizer.synchronize(List.of(new PermissionDefinition(PERMISSION_ID, "RIDE_CREATE", "Create Ride",
+                "Allows creating a ride", "rides", List.of(), PermissionDomain.APPLICATION)));
+
+        verify(permissionRepository).save(argThat(p ->
+                p.getId().equals(PERMISSION_ID)
+                        && "RIDE_CREATE".equals(p.getName())
+                        && "Create Ride".equals(p.getDisplayName())
+                        && "Allows creating a ride".equals(p.getDescription())
+                        && p.getDomain() == PermissionDomain.APPLICATION
+                        && p.getStatus() == PermissionStatus.ACTIVE));
+    }
+
+    @Test
+    @DisplayName("8. two runs over a stateful registry leave exactly one row with the same name")
+    void idempotentWithName() {
+
+        Map<UUID, Permission> table = new LinkedHashMap<>();
+        when(permissionRepository.findAll()).thenAnswer(inv -> new ArrayList<>(table.values()));
+        when(permissionRepository.save(any())).thenAnswer(inv -> {
+            Permission p = inv.getArgument(0);
+            table.put(p.getId(), p);
+            return p;
+        });
+
+        PermissionDefinition rideCreate = new PermissionDefinition(PERMISSION_ID, "RIDE_CREATE", "Create Ride",
+                "Allows creating a ride", "rides", List.of(), PermissionDomain.APPLICATION);
+
+        synchronizer.synchronize(List.of(rideCreate));
+        synchronizer.synchronize(List.of(rideCreate));
+
+        assertEquals(1, table.size());
+        assertEquals("RIDE_CREATE", table.get(PERMISSION_ID).getName());
+        verify(permissionRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("name changed on @PreAuthorize updates the same row in place (UUID is identity)")
+    void nameChangeUpdatesInPlace() {
+
+        Permission existing = stored(PERMISSION_ID, "Create Ride", PermissionStatus.ACTIVE);
+        when(permissionRepository.findAll()).thenReturn(List.of(existing));
+
+        synchronizer.synchronize(List.of(new PermissionDefinition(PERMISSION_ID, "RIDE_CREATE_V2", "Create Ride",
+                "Create Ride description", "rides", List.of(), PermissionDomain.APPLICATION)));
+
+        assertEquals("RIDE_CREATE_V2", existing.getName());
+        assertEquals(PERMISSION_ID, existing.getId());
+        verify(permissionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("6. new id claiming a name already held by another stored row fails; nothing overwritten")
+    void duplicateNameWithStoredRowFails() {
+
+        Permission existing = stored(PERMISSION_ID, "Create Ride", PermissionStatus.ACTIVE);
+        when(permissionRepository.findAll()).thenReturn(List.of(existing));
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> synchronizer.synchronize(List.of(
+                definition(PERMISSION_ID, "Create Ride", List.of()),
+                new PermissionDefinition(OTHER_PERMISSION_ID, "CREATE_RIDE", "Another", "x", "rides",
+                        List.of(), PermissionDomain.APPLICATION)
+        )));
+
+        assertTrue(error.getMessage().contains("Duplicate permission name"), error.getMessage());
+        assertTrue(error.getMessage().contains("name=CREATE_RIDE"), error.getMessage());
+        assertTrue(error.getMessage().contains(PERMISSION_ID.toString()), error.getMessage());
+        assertTrue(error.getMessage().contains(OTHER_PERMISSION_ID.toString()), error.getMessage());
+        assertEquals("CREATE_RIDE", existing.getName());
+        verify(permissionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("6. a DEPRECATED row keeps its name; a new id reusing it fails")
+    void deprecatedNameIsReserved() {
+
+        Permission deprecated = stored(PERMISSION_ID, "Create Ride", PermissionStatus.DEPRECATED);
+        when(permissionRepository.findAll()).thenReturn(List.of(deprecated));
+
+        assertThrows(IllegalStateException.class, () -> synchronizer.synchronize(List.of(
+                new PermissionDefinition(OTHER_PERMISSION_ID, "CREATE_RIDE", "Create Ride", "x", "rides",
+                        List.of(), PermissionDomain.APPLICATION))));
+
+        assertEquals(PermissionStatus.DEPRECATED, deprecated.getStatus());
+        verify(permissionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("10. removed permission becomes DEPRECATED and keeps its name")
+    void deprecatedKeepsName() {
+
+        Permission existing = stored(PERMISSION_ID, "Create Ride", PermissionStatus.ACTIVE);
+        when(permissionRepository.findAll()).thenReturn(List.of(existing));
+
+        synchronizer.synchronize(List.of());
+
+        assertEquals(PermissionStatus.DEPRECATED, existing.getStatus());
+        assertEquals("CREATE_RIDE", existing.getName());
     }
 
     @Test

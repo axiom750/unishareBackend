@@ -48,6 +48,14 @@ public class SecurityConfig {
                                 "/api/user-management/password-update",
                                 "/api/user-management/password-update/confirm"
                         ).permitAll() // Password reset endpoints
+                        // User-scoped ride reads: must precede the public GET rule (first match wins)
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/rides/my-rides",
+                                "/api/rides/my-requests",
+                                "/api/rides/*/requests",
+                                "/api/rides/*/passengers"
+                        ).authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/rides/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/rides/**").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/rides/**").authenticated()

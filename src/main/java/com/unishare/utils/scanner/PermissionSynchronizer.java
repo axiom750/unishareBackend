@@ -20,7 +20,9 @@ import java.util.UUID;
 /**
  * Synchronizes discovered @Permission declarations with the database.
  *
- * - Identity is the frozen permission UUID; metadata is updated in place.
+ * - Identity is the frozen permission UUID; metadata (including the canonical
+ *   name from @PreAuthorize) is updated in place.
+ * - Permission.name is unique across the registry; clashes fail startup.
  * - Permissions no longer discovered are marked DEPRECATED, never deleted.
  * - Deprecated permissions that reappear are reactivated.
  * - The PermissionDomain (APPLICATION / CONTROL_PLANE) comes from @Permission
@@ -62,6 +64,8 @@ public class PermissionSynchronizer {
             existingById.put(permission.getId(), permission);
         }
 
+        verifyUniqueNames(discoveredById, existingPermissions);
+
         for (PermissionDefinition definition : discoveredById.values()) {
 
             Permission permission = existingById.get(definition.id());
@@ -70,6 +74,7 @@ public class PermissionSynchronizer {
 
                 permission = Permission.builder()
                         .id(definition.id())
+                        .name(definition.name())
                         .displayName(definition.displayName())
                         .description(definition.description())
                         .baseEntity(definition.baseEntity())
@@ -84,8 +89,8 @@ public class PermissionSynchronizer {
 
                 permissionRepository.save(permission);
 
-                log.info("[SECURITY] Permission registered | id={} | name={} | domain={}",
-                        definition.id(), definition.displayName(), definition.domain());
+                log.info("[SECURITY] Permission registered | id={} | name={} | displayName={} | domain={}",
+                        definition.id(), definition.name(), definition.displayName(), definition.domain());
 
             } else {
                 updatePermission(permission, definition, now);
@@ -101,7 +106,7 @@ public class PermissionSynchronizer {
                 existing.setUpdatedAt(now);
 
                 log.warn("[SECURITY] Permission deprecated | id={} | name={}",
-                        existing.getId(), existing.getDisplayName());
+                        existing.getId(), existing.getName());
             }
         }
 
@@ -109,9 +114,54 @@ public class PermissionSynchronizer {
                 discoveredById.size(), existingPermissions.size());
     }
 
+    /**
+     * Permission.name must be unique across the whole registry, including rows
+     * not discovered in this run (DEPRECATED rows keep their historical name).
+     * Evaluated on the state AFTER synchronization: discovered permissions take
+     * their annotation name, every other row keeps its stored name. Any clash
+     * fails startup; neither permission is overwritten.
+     */
+    private void verifyUniqueNames(
+            Map<UUID, PermissionDefinition> discoveredById,
+            List<Permission> existingPermissions
+    ) {
+
+        Map<String, UUID> idsByName = new HashMap<>();
+
+        for (PermissionDefinition definition : discoveredById.values()) {
+            claimName(idsByName, definition.name(), definition.id());
+        }
+
+        for (Permission existing : existingPermissions) {
+            if (!discoveredById.containsKey(existing.getId()) && existing.getName() != null) {
+                claimName(idsByName, existing.getName(), existing.getId());
+            }
+        }
+    }
+
+    private static void claimName(Map<String, UUID> idsByName, String name, UUID id) {
+
+        UUID firstId = idsByName.putIfAbsent(name, id);
+
+        if (firstId != null && !firstId.equals(id)) {
+            throw new IllegalStateException(
+                    "[SECURITY] Duplicate permission name | name=" + name
+                            + " | firstId=" + firstId
+                            + " | secondId=" + id
+            );
+        }
+    }
+
     private void updatePermission(Permission existing, PermissionDefinition definition, LocalDateTime now) {
 
         boolean changed = false;
+
+        if (!Objects.equals(existing.getName(), definition.name())) {
+            log.warn("[SECURITY] Permission name changed | id={} | from={} | to={}",
+                    existing.getId(), existing.getName(), definition.name());
+            existing.setName(definition.name());
+            changed = true;
+        }
 
         if (!Objects.equals(existing.getDisplayName(), definition.displayName())) {
             existing.setDisplayName(definition.displayName());

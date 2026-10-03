@@ -8,9 +8,13 @@ import java.util.UUID;
 /**
  * Immutable representation of a discovered permission from controller scanning.
  * This is NOT a JPA entity - it's the scanner's output.
+ *
+ * {@code name} is the canonical authority extracted from the handler's
+ * {@code @PreAuthorize("hasAuthority('...')")}; {@code displayName} is the UI label.
  */
 public record PermissionDefinition(
         UUID id,
+        String name,
         String displayName,
         String description,
         String baseEntity,
@@ -23,6 +27,9 @@ public record PermissionDefinition(
     public PermissionDefinition {
         if (id == null) {
             throw new IllegalArgumentException("Permission ID cannot be null");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Permission name cannot be blank");
         }
         if (displayName == null || displayName.isBlank()) {
             throw new IllegalArgumentException("Permission displayName cannot be blank");

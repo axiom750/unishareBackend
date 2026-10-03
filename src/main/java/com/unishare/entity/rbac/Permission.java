@@ -26,6 +26,13 @@ public class Permission {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
+    /**
+     * Canonical, machine-readable authority (e.g. RIDE_CREATE). Sourced ONLY from the
+     * handler's @PreAuthorize("hasAuthority('...')"); displayName is just the UI label.
+     */
+    @Column(nullable = false, unique = true, length = 100)
+    private String name;
+
     @Column(nullable = false, length = 150)
     private String displayName;
 

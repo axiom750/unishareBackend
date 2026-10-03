@@ -1,8 +1,7 @@
-package com.unishare.service.auth;
+package com.unishare.service.rbac;
 
 import com.unishare.entity.rbac.Role;
 import com.unishare.repository.auth.RoleRepository;
-import com.unishare.service.rbac.RoleService;
 import com.unishare.utils.scanner.SecurityDeclarationScanner;
 import com.unishare.utils.scanner.SecurityDeclarations;
 import com.unishare.utils.scanner.uniShareRoleDefinition;
