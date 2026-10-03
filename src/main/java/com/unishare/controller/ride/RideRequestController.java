@@ -61,9 +61,7 @@ public class RideRequestController {
     ) {
 
         rideRequestService.declineRideRequest(requestId);
-
         Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
-
         return mapPage(result);
     }
 
@@ -75,9 +73,7 @@ public class RideRequestController {
     ) {
 
         rideRequestService.cancelRideRequest(requestId);
-
         Page<RideRequest> result = rideRequestService.getMyRideRequests(page, size);
-
         return mapPage(result);
     }
 

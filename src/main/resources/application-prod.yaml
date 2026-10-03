@@ -146,4 +146,4 @@ unishare:
     # GodAccount initial password: read from the environment, used only when the
     # GodAccount is first created. Never put a literal password here.
     god-account:
-      initial-password: ${GOD_ACCOUNT_INITIAL_PASSWORD:}
+      initial-password: ${GOD_ACCOUNT_INITIAL_PASSWORD}
