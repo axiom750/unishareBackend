@@ -9,6 +9,7 @@ import com.unishare.entity.ride.RideRequest;
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
 import com.unishare.enums.rbac.PermissionDomain;
+import com.unishare.idempotency.Idempotent;
 import com.unishare.service.ride.RideRequestService;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;

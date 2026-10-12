@@ -45,6 +45,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		name = "ADMIN",
 		description = "Administrative role for UniShare."
 )
+@uniShareRole(
+		id = "0199c5e8-7a3b-7f42-9c18-6d4e2a8b9135",
+		name = "CUSTOM_ROLE",
+		description = "Custom role for UniShare."
+)
 @SpringBootApplication
 @EnableScheduling
 public class UnishareApplication {

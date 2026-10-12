@@ -2,7 +2,7 @@ package com.unishare.utils.scanner;
 
 import com.unishare.entity.rbac.Permission;
 import com.unishare.enums.rbac.PermissionStatus;
-import com.unishare.repository.auth.PermissionRepository;
+import com.unishare.repository.rbac.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

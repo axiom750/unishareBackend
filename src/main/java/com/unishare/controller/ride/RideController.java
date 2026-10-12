@@ -7,6 +7,7 @@ import com.unishare.dto.request.ride.RideCreateRequest;
 import com.unishare.entity.ride.Ride;
 import com.unishare.entity.ride.RideRequest;
 import com.unishare.enums.rbac.PermissionDomain;
+import com.unishare.idempotency.Idempotent;
 import com.unishare.service.ride.RideRequestService;
 import com.unishare.service.ride.RideService;
 import jakarta.validation.Valid;
@@ -60,6 +61,7 @@ public class RideController {
     )
     @PreAuthorize("hasAuthority('RIDE_UPDATE')")
     @PatchMapping("/{id}")
+    @Idempotent
     public Ride updateRide(
             @PathVariable UUID id,
             @RequestBody RideCreateRequest request

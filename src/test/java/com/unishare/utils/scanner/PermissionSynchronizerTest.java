@@ -4,7 +4,7 @@ import com.unishare.entity.rbac.Permission;
 import com.unishare.entity.rbac.Role;
 import com.unishare.enums.rbac.PermissionDomain;
 import com.unishare.enums.rbac.PermissionStatus;
-import com.unishare.repository.auth.PermissionRepository;
+import com.unishare.repository.rbac.PermissionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

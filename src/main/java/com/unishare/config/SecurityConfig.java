@@ -1,3 +1,4 @@
+
 package com.unishare.config;
 
 import com.unishare.security.CustomAccessDeniedHandler;
@@ -23,32 +24,53 @@ public class SecurityConfig {
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
 
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .cors(cors ->
+                        cors.configurationSource(corsConfigurationSource)
+                )
                 .csrf(csrf -> csrf.disable())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .accessDeniedHandler(accessDeniedHandler)
                         .authenticationEntryPoint(authenticationEntryPoint)
                 )
                 .authorizeHttpRequests(auth -> auth
+
+                        // This endpoint requires a valid authentication.
+                        .requestMatchers(
+                                "/api/auth/unishare/me"
+                        ).authenticated()
+
+                        // Other authentication endpoints remain public.
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll() // Allow frontend API calls
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll() // Health checks
-                        .requestMatchers("/health").permitAll()
-                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // Health endpoints.
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/health",
+                                "/error"
+                        ).permitAll()
+
+                        // Password reset endpoints.
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/user-management/password-update",
                                 "/api/user-management/password-update/confirm"
-                        ).permitAll() // Password reset endpoints
-                        // User-scoped ride reads: must precede the public GET rule (first match wins)
+                        ).permitAll()
+
+                        // User-scoped ride endpoints.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/rides/my-rides",
@@ -56,13 +78,35 @@ public class SecurityConfig {
                                 "/api/rides/*/requests",
                                 "/api/rides/*/passengers"
                         ).authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/rides/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/rides/**").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/api/rides/**").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/rides/**").authenticated()
+
+                        // Public ride reads.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/rides/**"
+                        ).permitAll()
+
+                        // Ride modifications require authentication.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/rides/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/rides/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/rides/**"
+                        ).authenticated()
+
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(
+                        jwtFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }

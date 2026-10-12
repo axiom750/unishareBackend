@@ -1,3 +1,4 @@
+
 package com.unishare.service.auth;
 
 import io.jsonwebtoken.Claims;
@@ -22,11 +23,8 @@ public class JwtService {
     private long jwtExpiry;
 
     private Key getSigningKey() {
-
         return Keys.hmacShaKeyFor(
-                jwtSecret.getBytes(
-                        StandardCharsets.UTF_8
-                )
+                jwtSecret.getBytes(StandardCharsets.UTF_8)
         );
     }
 
@@ -35,53 +33,59 @@ public class JwtService {
             String email,
             String role
     ) {
-
         return Jwts.builder()
                 .setSubject(email)
                 .claim("userId", userId)
                 .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(
-                        new Date(
-                                System.currentTimeMillis()
-                                        + jwtExpiry
-                        )
+                        new Date(System.currentTimeMillis() + jwtExpiry)
                 )
-                .signWith(
-                        getSigningKey(),
-                        SignatureAlgorithm.HS256
-                )
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    public Claims extractAllClaims(
-            String token
-    ) {
-
+    public Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(
-                        getSigningKey()
-                )
+                .setSigningKey(getSigningKey())
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
     }
 
-    public boolean isTokenValid(
-            String token
-    ) {
+    public Long extractUserId(String token) {
+        Number userId = extractAllClaims(token)
+                .get("userId", Number.class);
+
+        if (userId == null) {
+            throw new JwtException("JWT is missing userId");
+        }
+
+        return userId.longValue();
+    }
+
+    public String extractEmail(String token) {
+        return extractAllClaims(token).getSubject();
+    }
+
+    public String extractRole(String token) {
+        return extractAllClaims(token).get("role", String.class);
+    }
+
+    public boolean isTokenValid(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
 
         try {
+            Claims claims = extractAllClaims(token);
 
-            extractAllClaims(token);
+            return claims.getSubject() != null
+                    && claims.get("userId") != null
+                    && claims.getExpiration() != null
+                    && claims.getExpiration().after(new Date());
 
-            return true;
-
-        } catch (
-                JwtException |
-                IllegalArgumentException exception
-        ) {
-
+        } catch (JwtException | IllegalArgumentException exception) {
             return false;
         }
     }

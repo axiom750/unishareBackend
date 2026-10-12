@@ -34,11 +34,9 @@ public record SecurityDeclarations(
         return new SecurityDeclarations(null, null, List.of());
     }
 
-    /**
-     * The first declared @uniShareRole, used as the default role for new users.
-     */
+
     public uniShareRoleDefinition defaultRole() {
-        return requireRoles().get(0);
+        return requireRoles().getFirst();
     }
 
     public GodAccountDefinition requireGodAccount() {

@@ -1,4 +1,4 @@
-package com.unishare.repository.auth;
+package com.unishare.repository.rbac;
 
 import com.unishare.entity.rbac.GodAccount;
 import com.unishare.entity.rbac.GodAccountRole;
