@@ -1,7 +1,9 @@
+
 package com.unishare.service.user;
 
 import com.unishare.entity.user.User;
 import com.unishare.entity.user.UserProfile;
+import com.unishare.enums.auth.AuthProvider;
 import com.unishare.repository.user.UserProfileRepository;
 import com.unishare.repository.user.UserRepository;
 import com.unishare.service.rbac.RoleService;
@@ -24,6 +26,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final RoleService roleService;
 
+    @Transactional(readOnly = true)
     public Optional<User> findByEmail(String email) {
 
         if (email == null) {
@@ -35,72 +38,55 @@ public class UserService {
         );
     }
 
+    @Transactional(readOnly = true)
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
     }
 
+    @Transactional(readOnly = true)
     public Optional<User> findByGoogleId(String googleId) {
         return userRepository.findByGoogleId(googleId);
     }
 
+    @Transactional(readOnly = true)
     public Optional<User> findByGithubId(String githubId) {
         return userRepository.findByGithubId(githubId);
     }
 
     /**
-     * Generates a unique UniShare username from an OAuth provider
-     * username.
+     * Generates a unique UniShare username from an OAuth
+     * provider username.
      */
-    public String generateUniqueUsername(
-            String baseUsername
-    ) {
+    @Transactional(readOnly = true)
+    public String generateUniqueUsername(String baseUsername) {
 
-        String base =
-                baseUsername == null
-                        ? "user"
-                        : baseUsername
-                        .trim()
-                        .replaceAll(
-                                "[^a-zA-Z0-9_]",
-                                "_"
-                        );
+        String base = baseUsername == null
+                ? "user"
+                : baseUsername.trim()
+                .replaceAll("[^a-zA-Z0-9_]", "_");
 
         if (base.isBlank()) {
             base = "user";
         }
 
-        /*
-         * users.username has max length 50.
-         */
+        // The users.username column has a maximum length of 50.
         if (base.length() > 40) {
             base = base.substring(0, 40);
         }
 
         String candidate = base;
-
         int counter = 1;
 
-        while (
-                userRepository.existsByUsername(candidate)
-        ) {
+        while (userRepository.existsByUsername(candidate)) {
 
-            String suffix =
-                    "_" + counter;
+            String suffix = "_" + counter;
+            int maxBaseLength = 50 - suffix.length();
 
-            int maxBaseLength =
-                    50 - suffix.length();
+            String shortenedBase = base.length() > maxBaseLength
+                    ? base.substring(0, maxBaseLength)
+                    : base;
 
-            String shortenedBase =
-                    base.length() > maxBaseLength
-                            ? base.substring(
-                            0,
-                            maxBaseLength
-                    )
-                            : base;
-
-            candidate =
-                    shortenedBase + suffix;
-
+            candidate = shortenedBase + suffix;
             counter++;
         }
 
@@ -108,47 +94,34 @@ public class UserService {
     }
 
     /**
-     * Existing Google OAuth flow.
-     *
-     * New users obtain their roles from RoleService.
-     * RoleService must resolve annotation-declared roles.
+     * Processes an existing Google user or creates a new one.
+     * New users receive the annotation-declared default role.
      */
     @Transactional
     public User processGoogleUser(
             String username,
             String email,
             String googleId,
-            String profilePictureUrl
-    ) {
+            String profilePictureUrl) {
 
-        email =
-                email.trim().toLowerCase();
+        email = email.trim().toLowerCase();
 
-        Optional<User> existingUser =
-                userRepository.findByGoogleId(
-                        googleId
-                );
+        Optional<User> existingUser = userRepository.findByGoogleId(googleId);
 
         if (existingUser.isPresent()) {
 
-            User user =
-                    existingUser.get();
+            User user = existingUser.get();
 
-            ensureProfileExists(
-                    user,
-                    profilePictureUrl
-            );
+            ensureProfileExists(user, profilePictureUrl);
 
             return user;
         }
 
-        existingUser =
-                userRepository.findByEmail(email);
+        existingUser = userRepository.findByEmail(email);
 
         if (existingUser.isPresent()) {
 
-            User user =
-                    existingUser.get();
+            User user = existingUser.get();
 
             if (user.getGoogleId() != null
                     && !user.getGoogleId().equals(googleId)) {
@@ -161,94 +134,66 @@ public class UserService {
             if (user.getGoogleId() == null) {
 
                 user.setGoogleId(googleId);
-
-                user =
-                        userRepository.save(user);
+                user = userRepository.save(user);
             }
 
-            ensureProfileExists(
-                    user,
-                    profilePictureUrl
-            );
+            ensureProfileExists(user, profilePictureUrl);
 
             return user;
         }
 
-        User newUser =
-                User.builder()
-                        .email(email)
-                        .username(
-                                generateUniqueUsername(
-                                        username
-                                )
+        User newUser = User.builder()
+                .email(email)
+                .username(generateUniqueUsername(username))
+                .googleId(googleId)
+                .authProvider(AuthProvider.GOOGLE)
+                .roles(roleService.getDefaultUserRoles())
+                .active(true)
+                .password(
+                        passwordEncoder.encode(
+                                UUID.randomUUID().toString()
                         )
-                        .googleId(googleId)
-                        .authProvider(
-                                com.unishare.enums.auth.AuthProvider.GOOGLE
-                        )
-                        .roles(
-                                roleService
-                                        .getDefaultUserRoles()
-                        )
-                        .active(true)
-                        .password(
-                                passwordEncoder.encode(
-                                        UUID.randomUUID()
-                                                .toString()
-                                )
-                        )
-                        .build();
+                )
+                .build();
 
-        User savedUser =
-                userRepository.save(newUser);
+        User savedUser = userRepository.save(newUser);
 
-        ensureProfileExists(
-                savedUser,
-                profilePictureUrl
-        );
+        ensureProfileExists(savedUser, profilePictureUrl);
 
         return savedUser;
     }
 
     private void ensureProfileExists(
             User user,
-            String profilePictureUrl
-    ) {
+            String profilePictureUrl) {
 
         Optional<UserProfile> existingProfile =
                 userProfileRepository.findByUser(user);
 
         if (existingProfile.isPresent()) {
 
-            UserProfile profile =
-                    existingProfile.get();
+            UserProfile profile = existingProfile.get();
 
             if (profile.getProfilePictureUrl() == null
                     && profilePictureUrl != null) {
 
-                profile.setProfilePictureUrl(
-                        profilePictureUrl
-                );
-
+                profile.setProfilePictureUrl(profilePictureUrl);
                 userProfileRepository.save(profile);
             }
 
             return;
         }
 
-        UserProfile profile =
-                UserProfile.builder()
-                        .user(user)
-                        .profilePictureUrl(
-                                profilePictureUrl
-                        )
-                        .build();
+        UserProfile profile = UserProfile.builder()
+                .user(user)
+                .profilePictureUrl(profilePictureUrl)
+                .build();
 
         userProfileRepository.save(profile);
     }
 
+    @Transactional
     public User save(User user) {
-
         return userRepository.save(user);
     }
 }

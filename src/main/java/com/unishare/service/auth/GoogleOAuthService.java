@@ -9,10 +9,10 @@ import com.unishare.service.rbac.RoleService;
 import com.unishare.service.user.UserService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -20,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Collections;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GoogleOAuthService {
@@ -49,7 +50,6 @@ public class GoogleOAuthService {
     @Value("${production.status}")
     private boolean isProduction;
 
-
     @PostConstruct
     public void init() {
         verifier = new GoogleIdTokenVerifier.Builder(
@@ -61,18 +61,24 @@ public class GoogleOAuthService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
     public ResponseEntity<String> handleCallback(String code) {
 
-        System.out.println("DEBUG: Google OAuth callback received");
+        log.debug("Google OAuth callback received");
 
         try {
-            String idToken = exchangeCodeForToken(code);
-            System.out.println("DEBUG: Successfully exchanged code for token");
-            
-            GoogleIdToken.Payload payload = verifyToken(idToken);
-            System.out.println("DEBUG: Token verified successfully for email: " + payload.getEmail());
+            if (code == null || code.isBlank()) {
+                throw new IllegalArgumentException("Google authorization code is missing");
+            }
 
+            String idToken = exchangeCodeForToken(code);
+            log.debug("Successfully exchanged code for token");
+
+            GoogleIdToken.Payload payload = verifyToken(idToken);
+            log.debug("Token verified successfully for email: {}", payload.getEmail());
+
+            if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+                throw new IllegalStateException("Google account email is not verified");
+            }
 
             User user = userService.processGoogleUser(
                     (String) payload.get("name"),
@@ -80,18 +86,20 @@ public class GoogleOAuthService {
                     payload.getSubject(),
                     (String) payload.get("picture")
             );
-            System.out.println("DEBUG: User processed: " + user.getEmail());
+            log.debug("User processed: {}", user.getEmail());
+
+            String primaryRole = roleService.getPrimaryRoleNameByUserId(user.getId());
 
             String jwt = jwtService.generateToken(
                     user.getId(),
                     user.getEmail(),
-                    roleService.getPrimaryRoleName(user.getRoles())
+                    primaryRole
             );
-            System.out.println("DEBUG: JWT generated successfully");
+            log.debug("JWT generated successfully");
 
             ResponseCookie cookie = buildCookie(jwt);
 
-            System.out.println("DEBUG: Redirecting to: " + frontendUrl);
+            log.debug("Redirecting to: {}", frontendUrl);
 
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -99,10 +107,8 @@ public class GoogleOAuthService {
                     .build();
 
         } catch (Exception e) {
-            // Log the error for debugging
-            System.err.println("Google OAuth error: " + e.getMessage());
-            e.printStackTrace();
-            
+            log.error("[OAUTH] Google authentication failed", e);
+
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header(HttpHeaders.LOCATION, frontendUrl + "/login-error?error=oauth_failed")
                     .build();
@@ -125,27 +131,26 @@ public class GoogleOAuthService {
             HttpEntity<MultiValueMap<String, String>> request =
                     new HttpEntity<>(params, headers);
 
-            System.out.println("DEBUG: Exchanging code for token with redirect_uri: " + redirectUri);
+            log.debug("Exchanging code for token with redirect_uri: {}", redirectUri);
 
             ResponseEntity<Map> response =
                     restTemplate.postForEntity(tokenEndPoint, request, Map.class);
 
-            System.out.println("DEBUG: Token exchange response: " + response.getStatusCode());
+            log.debug("Token exchange response status: {}", response.getStatusCode());
 
             if (response.getBody() == null) {
-                System.err.println("ERROR: Token response body is null");
+                log.error("Token response body is null");
                 throw new RuntimeException("Token response body is null");
             }
 
             if (response.getBody().get("id_token") == null) {
-                System.err.println("ERROR: Token response does not contain id_token. Response: " + response.getBody());
+                log.error("Token response does not contain id_token");
                 throw new RuntimeException("Token response invalid - no id_token");
             }
 
             return (String) response.getBody().get("id_token");
         } catch (Exception e) {
-            System.err.println("ERROR in exchangeCodeForToken: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Failed to exchange code for token", e);
             throw new RuntimeException("Failed to exchange code for token: " + e.getMessage(), e);
         }
     }
@@ -162,7 +167,6 @@ public class GoogleOAuthService {
         return idToken.getPayload();
     }
 
-
     private ResponseCookie buildCookie(String jwt) {
         ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from("token", jwt)
                 .httpOnly(true)
@@ -170,19 +174,20 @@ public class GoogleOAuthService {
                 .path("/")
                 .maxAge(60 * 60 * 24)
                 .sameSite(isProduction ? "None" : "Lax");
-        
+
         // Only set domain for local development
         if (!isProduction) {
             cookieBuilder.domain("localhost");
         }
         // For production, don't set domain to allow cross-domain cookies
-        
+
         ResponseCookie cookie = cookieBuilder.build();
-        
-        System.out.println("DEBUG: JWT authentication cookie created successfully - httpOnly: true, secure: " + isProduction + 
-                ", domain: " + (isProduction ? "not-set (cross-domain)" : "localhost") + 
-                ", sameSite: " + (isProduction ? "None" : "Lax"));
-        
+
+        log.debug("JWT authentication cookie created successfully - httpOnly: true, secure: {}, domain: {}, sameSite: {}",
+                isProduction,
+                isProduction ? "not-set (cross-domain)" : "localhost",
+                isProduction ? "None" : "Lax");
+
         return cookie;
     }
 }

@@ -22,7 +22,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @GodAccount(
 		id = "01a0fe4b-f2ea-7d8c-9a3f-1e5c4b7a9d2f",
 		username = "superuser",
-		email = "superuser.unishare@gmail.com",
+		email = "superuser@unishare.com",
 		displayName = "UniShare God Account"
 )
 @GodRole(

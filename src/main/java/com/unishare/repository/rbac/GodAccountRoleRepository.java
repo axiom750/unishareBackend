@@ -6,6 +6,7 @@ import com.unishare.entity.rbac.GodRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Repository for GodAccount -> GodRole assignments.
@@ -18,4 +19,6 @@ public interface GodAccountRoleRepository extends JpaRepository<GodAccountRole, 
     List<GodAccountRole> findByGodAccount(GodAccount godAccount);
 
     List<GodAccountRole> findByGodRole(GodRole godRole);
+
+    List<GodAccountRole> findByGodAccount_Id(UUID godAccountId);
 }

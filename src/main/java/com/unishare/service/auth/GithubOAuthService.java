@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -100,44 +101,28 @@ public class GithubOAuthService {
             /*
              * 1. Exchange authorization code for access token.
              */
-            String accessToken =
-                    exchangeCodeForToken(code);
+            String accessToken = exchangeCodeForToken(code);
 
             /*
              * 2. Fetch authenticated GitHub account.
              */
-            Map<String, Object> githubUser =
-                    fetchGithubUser(accessToken);
+            Map<String, Object> githubUser = fetchGithubUser(accessToken);
 
-            String githubId =
-                    extractRequiredString(
-                            githubUser,
-                            "id"
-                    );
+            String githubId = extractRequiredString(githubUser, "id");
 
-            String githubUsername =
-                    extractRequiredString(
-                            githubUser,
-                            "login"
-                    );
+            String githubUsername = extractRequiredString(githubUser, "login");
 
-            String avatarUrl =
-                    extractOptionalString(
-                            githubUser,
-                            "avatar_url"
-                    );
+            String avatarUrl = extractOptionalString(githubUser, "avatar_url");
 
             /*
              * 3. Get a verified GitHub email.
              */
-            String email =
-                    resolveVerifiedEmail(accessToken);
+            String email = resolveVerifiedEmail(accessToken);
 
             /*
              * 4. Find/link/create UniShare account.
              */
-            User user =
-                    processGithubUser(
+            User user = processGithubUser(
                             githubUsername,
                             email,
                             avatarUrl,
@@ -150,13 +135,11 @@ public class GithubOAuthService {
              * RoleService obtains the role from the runtime
              * role entity. It does not define role names.
              */
-            String primaryRole =
-                    roleService.getPrimaryRoleName(
-                            user.getRoles()
-                    );
 
-            String jwt =
-                    jwtService.generateToken(
+            String primaryRole = roleService.getPrimaryRoleNameByUserId(user.getId());
+
+
+            String jwt = jwtService.generateToken(
                             user.getId(),
                             user.getEmail(),
                             primaryRole
@@ -165,8 +148,7 @@ public class GithubOAuthService {
             /*
              * 6. Store JWT in HttpOnly cookie.
              */
-            ResponseCookie cookie =
-                    buildCookie(jwt);
+            ResponseCookie cookie = buildCookie(jwt);
 
             return ResponseEntity
                     .status(HttpStatus.FOUND)
@@ -187,10 +169,7 @@ public class GithubOAuthService {
              *
              * The authorization code and access token are never logged.
              */
-            log.error(
-                    "[OAUTH] GitHub authentication failed",
-                    exception
-            );
+            log.error("[OAUTH] GitHub authentication failed", exception);
 
             return redirectToLoginError();
         }
@@ -201,24 +180,18 @@ public class GithubOAuthService {
      */
     private String exchangeCodeForToken(String code) {
 
-        MultiValueMap<String, String> params =
-                new LinkedMultiValueMap<>();
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
 
         params.add("client_id", clientId);
         params.add("client_secret", clientSecret);
         params.add("code", code);
         params.add("redirect_uri", redirectUrl);
 
-        HttpHeaders headers =
-                new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
 
-        headers.setContentType(
-                MediaType.APPLICATION_FORM_URLENCODED
-        );
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        headers.setAccept(
-                List.of(MediaType.APPLICATION_JSON)
-        );
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         HttpEntity<MultiValueMap<String, String>> request =
                 new HttpEntity<>(
@@ -226,8 +199,7 @@ public class GithubOAuthService {
                         headers
                 );
 
-        ResponseEntity<Map> response =
-                restTemplate.postForEntity(
+        ResponseEntity<Map> response = restTemplate.postForEntity(
                         tokenUrl,
                         request,
                         Map.class
@@ -241,8 +213,7 @@ public class GithubOAuthService {
             );
         }
 
-        Object accessToken =
-                body.get("access_token");
+        Object accessToken = body.get("access_token");
 
         if (!(accessToken instanceof String token)
                 || token.isBlank()) {
@@ -262,17 +233,13 @@ public class GithubOAuthService {
             String accessToken
     ) {
 
-        HttpHeaders headers =
-                new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
 
         headers.setBearerAuth(accessToken);
 
-        headers.setAccept(
-                List.of(MediaType.APPLICATION_JSON)
-        );
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
-        HttpEntity<Void> request =
-                new HttpEntity<>(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
 
         ResponseEntity<Map> response =
                 restTemplate.exchange(
@@ -303,28 +270,22 @@ public class GithubOAuthService {
             String accessToken
     ) {
 
-        HttpHeaders headers =
-                new HttpHeaders();
+        HttpHeaders headers = new HttpHeaders();
 
         headers.setBearerAuth(accessToken);
 
-        headers.setAccept(
-                List.of(MediaType.APPLICATION_JSON)
-        );
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
-        HttpEntity<Void> request =
-                new HttpEntity<>(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
 
-        ResponseEntity<List> response =
-                restTemplate.exchange(
+        ResponseEntity<List> response = restTemplate.exchange(
                         "https://api.github.com/user/emails",
                         HttpMethod.GET,
                         request,
                         List.class
                 );
 
-        List<Map<String, Object>> emails =
-                response.getBody();
+        List<Map<String, Object>> emails = response.getBody();
 
         if (emails == null || emails.isEmpty()) {
             throw new IllegalStateException(
@@ -337,23 +298,13 @@ public class GithubOAuthService {
          */
         for (Map<String, Object> emailEntry : emails) {
 
-            boolean primary =
-                    Boolean.TRUE.equals(
-                            emailEntry.get("primary")
-                    );
+            boolean primary = Boolean.TRUE.equals(emailEntry.get("primary"));
 
-            boolean verified =
-                    Boolean.TRUE.equals(
-                            emailEntry.get("verified")
-                    );
+            boolean verified = Boolean.TRUE.equals(emailEntry.get("verified"));
 
             if (primary && verified) {
 
-                String email =
-                        extractOptionalString(
-                                emailEntry,
-                                "email"
-                        );
+                String email = extractOptionalString(emailEntry, "email");
 
                 if (email != null) {
                     return normalizeEmail(email);
@@ -366,20 +317,13 @@ public class GithubOAuthService {
          */
         for (Map<String, Object> emailEntry : emails) {
 
-            boolean verified =
-                    Boolean.TRUE.equals(
-                            emailEntry.get("verified")
-                    );
+            boolean verified = Boolean.TRUE.equals(emailEntry.get("verified"));
 
             if (!verified) {
                 continue;
             }
 
-            String email =
-                    extractOptionalString(
-                            emailEntry,
-                            "email"
-                    );
+            String email = extractOptionalString(emailEntry, "email");
 
             if (email != null) {
                 return normalizeEmail(email);
@@ -395,6 +339,7 @@ public class GithubOAuthService {
      * Finds an existing GitHub user, safely links an existing
      * verified-email account, or creates a new normal user.
      */
+    @Transactional
     private User processGithubUser(
             String githubUsername,
             String email,
@@ -407,13 +352,11 @@ public class GithubOAuthService {
          *
          * GitHub ID is the primary provider identity.
          */
-        Optional<User> existingByGithubId =
-                userService.findByGithubId(githubId);
+        Optional<User> existingByGithubId = userService.findByGithubId(githubId);
 
         if (existingByGithubId.isPresent()) {
 
-            User user =
-                    existingByGithubId.get();
+            User user = existingByGithubId.get();
 
             ensureProfileExists(
                     user,
@@ -429,19 +372,16 @@ public class GithubOAuthService {
          * Email linking is allowed only because the email was
          * verified by GitHub.
          */
-        Optional<User> existingByEmail =
-                userService.findByEmail(email);
+        Optional<User> existingByEmail = userService.findByEmail(email);
 
         if (existingByEmail.isPresent()) {
 
-            User user =
-                    existingByEmail.get();
+            User user = existingByEmail.get();
 
             /*
              * Never replace another GitHub identity.
              */
-            if (user.getGithubId() != null
-                    && !user.getGithubId().equals(githubId)) {
+            if (user.getGithubId() != null && !user.getGithubId().equals(githubId)) {
 
                 throw new IllegalStateException(
                         "User account is already linked to another GitHub account"
@@ -452,8 +392,7 @@ public class GithubOAuthService {
 
                 user.setGithubId(githubId);
 
-                user =
-                        userService.save(user);
+                user = userService.save(user);
             }
 
             /*
@@ -472,8 +411,7 @@ public class GithubOAuthService {
          *
          * Completely new UniShare user.
          */
-        User newUser =
-                new User();
+        User newUser = new User();
 
         newUser.setGithubId(githubId);
 
@@ -483,15 +421,9 @@ public class GithubOAuthService {
          * GitHub login name is only a username candidate.
          * UserService guarantees uniqueness.
          */
-        newUser.setUsername(
-                userService.generateUniqueUsername(
-                        githubUsername
-                )
-        );
+        newUser.setUsername(userService.generateUniqueUsername(githubUsername));
 
-        newUser.setAuthProvider(
-                AuthProvider.GITHUB
-        );
+        newUser.setAuthProvider(AuthProvider.GITHUB);
 
         newUser.setActive(true);
 
@@ -503,22 +435,15 @@ public class GithubOAuthService {
          *
          * No "USER" string is declared here.
          */
-        newUser.setRoles(
-                roleService.getDefaultUserRoles()
-        );
+        newUser.setRoles(roleService.getDefaultUserRoles());
 
         /*
          * OAuth users don't know this password.
          * It only satisfies the current User schema.
          */
-        newUser.setPassword(
-                passwordEncoder.encode(
-                        UUID.randomUUID().toString()
-                )
-        );
+        newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
 
-        User savedUser =
-                userService.save(newUser);
+        User savedUser = userService.save(newUser);
 
         ensureProfileExists(
                 savedUser,
@@ -533,13 +458,11 @@ public class GithubOAuthService {
             String profilePictureUrl
     ) {
 
-        Optional<UserProfile> existingProfile =
-                userProfileRepository.findByUser(user);
+        Optional<UserProfile> existingProfile = userProfileRepository.findByUser(user);
 
         if (existingProfile.isPresent()) {
 
-            UserProfile profile =
-                    existingProfile.get();
+            UserProfile profile = existingProfile.get();
 
             if (profile.getProfilePictureUrl() == null
                     && profilePictureUrl != null) {
@@ -554,8 +477,7 @@ public class GithubOAuthService {
             return;
         }
 
-        UserProfile profile =
-                UserProfile.builder()
+        UserProfile profile = UserProfile.builder()
                         .user(user)
                         .profilePictureUrl(profilePictureUrl)
                         .build();
@@ -576,8 +498,7 @@ public class GithubOAuthService {
             );
         }
 
-        String result =
-                String.valueOf(value).trim();
+        String result = String.valueOf(value).trim();
 
         if (result.isBlank()) {
             throw new IllegalStateException(
@@ -599,8 +520,7 @@ public class GithubOAuthService {
             return null;
         }
 
-        String result =
-                String.valueOf(value).trim();
+        String result = String.valueOf(value).trim();
 
         return result.isBlank()
                 ? null
@@ -609,25 +529,23 @@ public class GithubOAuthService {
 
     private String normalizeEmail(String email) {
 
-        return email
-                .trim()
-                .toLowerCase();
+        return email.trim().toLowerCase();
     }
 
     private ResponseCookie buildCookie(String jwt) {
+        ResponseCookie.ResponseCookieBuilder cookieBuilder =
+                ResponseCookie.from("token", jwt)
+                        .httpOnly(true)
+                        .secure(isProduction)
+                        .path("/")
+                        .maxAge(60 * 60 * 24)
+                        .sameSite(isProduction ? "None" : "Lax");
 
-        return ResponseCookie
-                .from("token", jwt)
-                .httpOnly(true)
-                .secure(isProduction)
-                .path("/")
-                .maxAge(60 * 60 * 24)
-                .sameSite(
-                        isProduction
-                                ? "None"
-                                : "Lax"
-                )
-                .build();
+        if (!isProduction) {
+            cookieBuilder.domain("localhost");
+        }
+
+        return cookieBuilder.build();
     }
 
     private ResponseEntity<Void> redirectToLoginError() {

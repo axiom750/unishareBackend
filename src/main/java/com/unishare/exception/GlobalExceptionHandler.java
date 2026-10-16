@@ -1,203 +1,406 @@
+
 package com.unishare.exception;
 
 import com.unishare.dto.response.api.UniEnvelope;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.util.HashMap;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleValidationExceptions(
-            MethodArgumentNotValidException ex,
-            WebRequest request
-    ) {
-        String path = request.getDescription(false).replace("uri=", "");
-        
-        // Extract field errors for logging (without rejected values)
-        StringBuilder fieldsSummary = new StringBuilder();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            if (fieldsSummary.length() > 0) {
-                fieldsSummary.append(", ");
-            }
-            fieldsSummary.append(fieldName);
-        });
-        
-        // Concise validation log - NO rejected values logged
-        log.warn("[HTTP] Validation failed | path={} | fields=[{}]", 
-                path, fieldsSummary.toString());
-        
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 400);
-        errorDetails.put("error", "Bad Request");
+    private ResponseEntity<UniEnvelope<Map<String, Object>>> buildErrorResponse(
+            HttpStatus status,
+            String message,
+            String path,
+            Map<String, Object> details,
+            HttpHeaders headers) {
+
+        Map<String, Object> errorDetails = new LinkedHashMap<>();
+
+        errorDetails.put("timestamp", Instant.now().toString());
+        errorDetails.put("status", status.value());
+        errorDetails.put("error", status.getReasonPhrase());
+        errorDetails.put("message", message);
         errorDetails.put("path", path);
 
-        Map<String, String> fieldErrors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            fieldErrors.put(fieldName, errorMessage);
-        });
-        errorDetails.put("validationErrors", fieldErrors);
+        if (details != null && !details.isEmpty()) {
+            errorDetails.putAll(details);
+        }
 
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                "Validation failed"
+        UniEnvelope<Map<String, Object>> body =
+                new UniEnvelope<>(errorDetails, false, message);
+
+        return new ResponseEntity<>(body, headers, status);
+    }
+
+    private ResponseEntity<UniEnvelope<Map<String, Object>>> error(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request) {
+
+        return buildErrorResponse(
+                status,
+                message,
+                request.getRequestURI(),
+                null,
+                new HttpHeaders()
+        );
+    }
+
+    private ResponseEntity<UniEnvelope<Map<String, Object>>> error(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request,
+            Map<String, Object> details) {
+
+        return buildErrorResponse(
+                status,
+                message,
+                request.getRequestURI(),
+                details,
+                new HttpHeaders()
+        );
+    }
+
+    // --------------------------------------------------
+    // 401 / 403 - Authentication and authorization
+    // --------------------------------------------------
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleAccessDenied(
+            AccessDeniedException ex,
+            HttpServletRequest request) {
+
+        log.warn(
+                "[HTTP] Access denied | method={} | path={}",
+                request.getMethod(),
+                request.getRequestURI()
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(envelope);
+        return error(
+                HttpStatus.FORBIDDEN,
+                "You do not have permission to perform this action.",
+                request
+        );
+    }
+
+    // --------------------------------------------------
+    // 404 - Missing routes
+    // --------------------------------------------------
+
+    @ExceptionHandler({
+            NoResourceFoundException.class,
+            NoHandlerFoundException.class
+    })
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleNotFound(
+            Exception ex,
+            HttpServletRequest request) {
+
+        log.warn(
+                "[HTTP] Route not found | method={} | path={}",
+                request.getMethod(),
+                request.getRequestURI()
+        );
+
+        return error(
+                HttpStatus.NOT_FOUND,
+                "The requested endpoint was not found.",
+                request
+        );
+    }
+
+    // --------------------------------------------------
+    // 400 - Request validation
+    // --------------------------------------------------
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
+
+        Map<String, List<String>> fieldErrors = new LinkedHashMap<>();
+
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            fieldErrors.computeIfAbsent(
+                    fieldError.getField(),
+                    key -> new java.util.ArrayList<>()
+            ).add(fieldError.getDefaultMessage() != null
+                    ? fieldError.getDefaultMessage()
+                    : "Invalid value");
+        }
+
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("fieldErrors", fieldErrors);
+
+        log.warn(
+                "[HTTP] Validation failed | path={} | fields={}",
+                request.getRequestURI(),
+                fieldErrors.keySet()
+        );
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed.",
+                request,
+                details
+        );
+    }
+
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleBindException(
+            BindException ex,
+            HttpServletRequest request) {
+
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            fieldErrors.put(
+                    fieldError.getField(),
+                    fieldError.getDefaultMessage() != null
+                            ? fieldError.getDefaultMessage()
+                            : "Invalid value"
+            );
+        }
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed.",
+                request,
+                Map.of("fieldErrors", fieldErrors)
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request) {
+
+        List<String> violations = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> violation.getPropertyPath()
+                        + ": " + violation.getMessage())
+                .toList();
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Request constraint validation failed.",
+                request,
+                Map.of("violations", violations)
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleUnreadableBody(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Request body is missing or malformed.",
+                request
+        );
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMissingParameter(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Required parameter is missing: " + ex.getParameterName(),
+                request
+        );
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMissingPart(
+            MissingServletRequestPartException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Required request part is missing: " + ex.getRequestPartName(),
+                request
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                "Invalid value supplied for parameter: " + ex.getName(),
+                request
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleIllegalArgumentException(
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleIllegalArgument(
             IllegalArgumentException ex,
-            WebRequest request
-    ) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 400);
-        errorDetails.put("error", "Bad Request");
-        errorDetails.put("message", ex.getMessage());
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+            HttpServletRequest request) {
 
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                ex.getMessage()
+        String message = ex.getMessage();
+
+        return error(
+                HttpStatus.BAD_REQUEST,
+                message != null && !message.isBlank()
+                        ? message
+                        : "Invalid request argument.",
+                request
         );
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(envelope);
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleIllegalStateException(
-            IllegalStateException ex,
-            WebRequest request
-    ) {
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 409);
-        errorDetails.put("error", "Conflict");
-        errorDetails.put("message", ex.getMessage());
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+    // --------------------------------------------------
+    // 405 / 406 / 413 / 415 - HTTP and upload errors
+    // --------------------------------------------------
 
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                ex.getMessage()
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex,
+            HttpServletRequest request) {
+
+        HttpHeaders headers = new HttpHeaders();
+
+        if (ex.getSupportedHttpMethods() != null) {
+            headers.setAllow(ex.getSupportedHttpMethods());
+        }
+
+        return buildErrorResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "HTTP method is not supported for this endpoint.",
+                request.getRequestURI(),
+                null,
+                headers
+        );
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "The request content type is not supported.",
+                request
+        );
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMediaTypeNotAcceptable(
+            HttpMediaTypeNotAcceptableException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.NOT_ACCEPTABLE,
+                "The requested response format is not available.",
+                request
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex,
+            HttpServletRequest request) {
+
+        return error(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file or request exceeds the allowed size.",
+                request
+        );
+    }
+
+    // --------------------------------------------------
+    // 409 - Database conflicts
+    // --------------------------------------------------
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleOptimisticLocking(
+            OptimisticLockingFailureException ex,
+            HttpServletRequest request) {
+
+        log.warn(
+                "[HTTP] Concurrent modification | path={}",
+                request.getRequestURI()
         );
 
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(envelope);
+        return error(
+                HttpStatus.CONFLICT,
+                "The resource was modified by another request. Please retry.",
+                request
+        );
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleDataIntegrityViolationException(
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleDataIntegrityViolation(
             DataIntegrityViolationException ex,
-            WebRequest request
-    ) {
-        // Log the full exception server-side for debugging
-        log.error("[DB] Data integrity violation: {}", ex.getMessage());
+            HttpServletRequest request) {
 
-        // Return generic error to client without exposing SQL details
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 500);
-        errorDetails.put("error", "Internal Server Error");
-        errorDetails.put("message", "An error occurred while processing your request. Please try again.");
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
-
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                "An error occurred"
+        log.warn(
+                "[HTTP] Data integrity violation | path={} | exception={}",
+                request.getRequestURI(),
+                ex.getClass().getSimpleName()
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
-    }
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleRuntimeException(
-            RuntimeException ex,
-            WebRequest request
-    ) {
-        // Log the full exception server-side
-        log.error("[ERROR] Runtime exception: {}", ex.getMessage(), ex);
-
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 500);
-        errorDetails.put("error", "Internal Server Error");
-        errorDetails.put("message", ex.getMessage());
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
-
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                "An error occurred"
+        return error(
+                HttpStatus.CONFLICT,
+                "The operation conflicts with existing data or a database constraint.",
+                request
         );
-
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
     }
+
+    // --------------------------------------------------
+    // 500 - Unexpected errors
+    // --------------------------------------------------
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleGenericException(
+    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleUnexpectedException(
             Exception ex,
-            WebRequest request
-    ) {
-        // Log the full exception server-side
-        log.error("[ERROR] Unexpected exception: {}", ex.getMessage(), ex);
+            HttpServletRequest request) {
 
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 500);
-        errorDetails.put("error", "Internal Server Error");
-        errorDetails.put("message", "An unexpected error occurred");
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
-
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                "An unexpected error occurred"
+        log.error(
+                "[ERROR] Unexpected exception | method={} | path={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
-    }
-    
-    @ExceptionHandler(com.unishare.redis.RedisOperationException.class)
-    public ResponseEntity<UniEnvelope<Map<String, Object>>> handleRedisException(
-            com.unishare.redis.RedisOperationException ex,
-            WebRequest request
-    ) {
-        // Redis operation already logged by RedisService, just log the handler invocation
-        log.error("[ERROR] Redis operation failed - returning 500 to client");
-
-        Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("status", 500);
-        errorDetails.put("error", "Internal Server Error");
-        errorDetails.put("message", "A temporary service issue occurred. Please try again.");
-        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
-
-        UniEnvelope<Map<String, Object>> envelope = new UniEnvelope<>(
-                errorDetails,
-                false,
-                "Service temporarily unavailable"
+        return error(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected server error occurred.",
+                request
         );
-
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(envelope);
     }
 }

@@ -1,3 +1,4 @@
+
 package com.unishare.service.rbac;
 
 import com.unishare.entity.rbac.Permission;
@@ -28,7 +29,8 @@ public class RoleService {
 
         if (!declarations.isNormalRole(roleId)) {
             throw new IllegalArgumentException(
-                    "[RBAC] Role UUID is not a declared @uniShareRole: " + roleId
+                    "[RBAC] Role UUID is not a declared @uniShareRole: "
+                            + roleId
             );
         }
 
@@ -75,6 +77,90 @@ public class RoleService {
         return new HashSet<>(role.getPermissions());
     }
 
+    /**
+     * Replaces all permissions assigned to a declared normal role.
+     */
+    @Transactional
+    public void replaceRolePermissions(
+            UUID roleId,
+            Set<Permission> permissions
+    ) {
+
+        if (permissions == null) {
+            throw new IllegalArgumentException(
+                    "Permissions must not be null"
+            );
+        }
+
+        Role role = getRoleById(roleId);
+
+        role.getPermissions().clear();
+        role.getPermissions().addAll(permissions);
+
+        roleRepository.save(role);
+
+        log.info(
+                "[RBAC] Permissions replaced for role {} ({} permissions)",
+                roleId,
+                permissions.size()
+        );
+    }
+
+    /**
+     * Revokes only the specified permissions from a normal role.
+     * All other assigned permissions remain unchanged.
+     *
+     * @return IDs of the permissions that were actually revoked
+     */
+    @Transactional
+    public Set<UUID> revokeRolePermissions(
+            UUID roleId,
+            Set<UUID> permissionIds
+    ) {
+
+        if (roleId == null) {
+            throw new IllegalArgumentException("Role ID is required");
+        }
+
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "At least one permission ID is required"
+            );
+        }
+
+        Role role = getRoleById(roleId);
+
+        Set<Permission> assignedPermissions = role.getPermissions();
+        Set<UUID> revokedIds = new HashSet<>();
+
+        for (Permission permission : assignedPermissions) {
+            if (permissionIds.contains(permission.getId())) {
+                revokedIds.add(permission.getId());
+            }
+        }
+
+        if (revokedIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "None of the supplied permissions are assigned to role "
+                            + roleId
+            );
+        }
+
+        assignedPermissions.removeIf(
+                permission -> revokedIds.contains(permission.getId())
+        );
+
+        roleRepository.save(role);
+
+        log.info(
+                "[RBAC] Revoked {} permission(s) from role {}",
+                revokedIds.size(),
+                roleId
+        );
+
+        return revokedIds;
+    }
+
     public boolean hasRole(Set<Role> userRoles, UUID roleId) {
 
         if (userRoles == null || userRoles.isEmpty()) {
@@ -82,9 +168,7 @@ public class RoleService {
         }
 
         return userRoles.stream()
-                .anyMatch(role ->
-                        role.getId().equals(roleId)
-                );
+                .anyMatch(role -> role.getId().equals(roleId));
     }
 
     public boolean hasRole(Set<Role> userRoles, String roleName) {
@@ -97,6 +181,14 @@ public class RoleService {
                 .anyMatch(role ->
                         roleName.equalsIgnoreCase(role.getName())
                 );
+    }
+
+    @Transactional(readOnly = true)
+    public String getPrimaryRoleNameByUserId(Long userId) {
+
+        List<Role> userRoles = roleRepository.findRolesByUserId(userId);
+
+        return getPrimaryRoleName(new HashSet<>(userRoles));
     }
 
     public String getPrimaryRoleName(Set<Role> userRoles) {

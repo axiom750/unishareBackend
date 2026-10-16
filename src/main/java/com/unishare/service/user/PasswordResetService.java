@@ -1,4 +1,4 @@
-package com.unishare.service.usermanagement;
+package com.unishare.service.user;
 
 import com.unishare.dto.response.password.PasswordResetResponse;
 import com.unishare.entity.auth.PasswordResetToken;

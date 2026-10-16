@@ -220,8 +220,7 @@ class PermissionScannerTest {
         Map<RequestMappingInfo, HandlerMethod> handlers = new LinkedHashMap<>();
         for (Class<?> controller : List.of(
                 com.unishare.controller.ride.RideController.class,
-                com.unishare.controller.ride.RideRequestController.class,
-                com.unishare.controller.user.UpdateUserProfileController.class)) {
+                com.unishare.controller.ride.RideRequestController.class)) {
             Object bean = mock(controller);
             for (java.lang.reflect.Method method : controller.getDeclaredMethods()) {
                 if (java.lang.reflect.Modifier.isPublic(method.getModifiers())) {

@@ -2,7 +2,6 @@
 package com.unishare.security;
 
 import com.unishare.service.auth.JwtService;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,22 +10,28 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String TOKEN_COOKIE = "token";
+    private static final String BEARER_PREFIX = "Bearer ";
+
     private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(
@@ -42,83 +47,123 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String token = extractToken(request);
 
                 if (token != null && jwtService.isTokenValid(token)) {
-                    Claims claims = jwtService.extractAllClaims(token);
-
-                    Number userIdClaim =
-                            claims.get("userId", Number.class);
-                    String role = claims.get("role", String.class);
-
-                    if (userIdClaim != null
-                            && role != null
-                            && !role.isBlank()) {
-
-                        Long userId = userIdClaim.longValue();
-
-                        String authority = role.startsWith("ROLE_")
-                                ? role
-                                : "ROLE_" + role;
-
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(
-                                        userId.toString(),
-                                        null,
-                                        List.of(
-                                                new SimpleGrantedAuthority(
-                                                        authority
-                                                )
-                                        )
-                                );
-
-                        authentication.setDetails(
-                                new WebAuthenticationDetailsSource()
-                                        .buildDetails(request)
-                        );
-
-                        SecurityContextHolder.getContext()
-                                .setAuthentication(authentication);
-
-                        log.debug(
-                                "[AUTH] JWT authenticated user ID: {}",
-                                userId
-                        );
-                    } else {
-                        log.debug("[AUTH] JWT missing userId or role claim");
-                    }
-                } else if (token != null) {
-                    log.debug("[AUTH] JWT is invalid or expired");
+                    authenticateRequest(token, request);
                 }
             }
         } catch (JwtException | IllegalArgumentException exception) {
             SecurityContextHolder.clearContext();
-            log.debug("[AUTH] JWT validation failed");
+
+            log.debug(
+                    "[SECURITY] Invalid JWT for request {}",
+                    request.getRequestURI()
+            );
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private String extractToken(HttpServletRequest request) {
-        String authorizationHeader = request.getHeader("Authorization");
+    private void authenticateRequest(
+            String token,
+            HttpServletRequest request
+    ) {
+        Long userId = jwtService.extractUserId(token);
+        String email = jwtService.extractEmail(token);
 
-        if (authorizationHeader != null
-                && authorizationHeader.startsWith("Bearer ")) {
+        // Require the role claim for compatibility with issued tokens.
+        // Actual authorities are loaded from the database below.
+        jwtService.extractRole(token);
 
-            String bearerToken =
-                    authorizationHeader.substring(7).trim();
+        UserDetails userDetails;
 
-            if (!bearerToken.isEmpty()) {
-                return bearerToken;
-            }
+        try {
+            userDetails = userDetailsService
+                    .loadUserByUsername(email);
+        } catch (UsernameNotFoundException exception) {
+            log.debug(
+                    "[SECURITY] JWT user no longer exists"
+            );
+            return;
         }
 
+        if (userDetails == null) {
+            return;
+        }
+
+        if (!userDetails.isEnabled()
+                || !userDetails.isAccountNonExpired()
+                || !userDetails.isAccountNonLocked()) {
+
+            log.debug(
+                    "[SECURITY] User account is not eligible for authentication"
+            );
+            return;
+        }
+
+        // CustomUserDetailsService returns the numeric user ID
+        // as the UserDetails username.
+        if (!String.valueOf(userId)
+                .equals(userDetails.getUsername())) {
+
+            log.warn(
+                    "[SECURITY] JWT identity mismatch; authentication rejected"
+            );
+            return;
+        }
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        userDetails.getUsername(),
+                        null,
+                        userDetails.getAuthorities()
+                );
+
+        authentication.setDetails(
+                new WebAuthenticationDetailsSource()
+                        .buildDetails(request)
+        );
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+
+        log.debug(
+                "[SECURITY] JWT authentication established for user ID {}",
+                userId
+        );
+    }
+
+    private String extractToken(HttpServletRequest request) {
+        String authorizationHeader = request.getHeader(
+                HttpHeaders.AUTHORIZATION
+        );
+
+        if (authorizationHeader != null
+                && authorizationHeader.startsWith(BEARER_PREFIX)) {
+
+            String token = authorizationHeader
+                    .substring(BEARER_PREFIX.length())
+                    .trim();
+
+            return token.isEmpty() ? null : token;
+        }
+
+        return extractTokenFromCookie(request);
+    }
+
+    private String extractTokenFromCookie(
+            HttpServletRequest request
+    ) {
         Cookie[] cookies = request.getCookies();
 
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("token".equals(cookie.getName())
-                        && cookie.getValue() != null
-                        && !cookie.getValue().isBlank()) {
-                    return cookie.getValue();
-                }
+        if (cookies == null) {
+            return null;
+        }
+
+        for (Cookie cookie : cookies) {
+            if (TOKEN_COOKIE.equals(cookie.getName())
+                    && cookie.getValue() != null
+                    && !cookie.getValue().isBlank()) {
+
+                return cookie.getValue();
             }
         }
 

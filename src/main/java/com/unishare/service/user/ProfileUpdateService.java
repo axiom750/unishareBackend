@@ -29,7 +29,7 @@ public class ProfileUpdateService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new RuntimeException("User not found"));
+                        new IllegalArgumentException("User not found"));
 
         UserProfile profile = userProfileRepository
                 .findByUser(user)
